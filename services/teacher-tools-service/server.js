@@ -35,6 +35,12 @@ app.use('/api/teacher-tools/lessons', authenticateToken, lessonPlanRouter);
 const assessmentRouter = require('./routes/assessments'); // <-- Require the new router
 app.use('/api/teacher-tools/assessments', authenticateToken, assessmentRouter); 
 
+const tosRouter = require('./routes/tablesOfSpecs'); // Require the new router
+app.use('/api/teacher-tools/tos', authenticateToken, tosRouter); // Use the new router
+
+const rubricRouter = require('./routes/rubrics'); // <-- Require Rubric router
+app.use('/api/teacher-tools/rubrics', authenticateToken, rubricRouter); // <-- Use Rubric router
+
 
 // TODO: Add routers for other teacher tools later
 // Example:

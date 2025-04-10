@@ -210,9 +210,9 @@ ${context}
 5.  **Strand:** ${strand}
 6.  **Sub-strand:** ${subStrand}
 7.  **Content Standard:** ${contentStandard}
-8.  **Core Competencies:** (Identify relevant competencies based on topic/context, e.g., Critical Thinking, Communication, Collaboration, Creativity, Digital Literacy, Personal Development)
-9.  **Indicators & Exemplars:** (Derive specific, measurable indicators and examples from the content standard and context)
-10. **Three Essential Questions:** (Formulate 3 thought-provoking questions related to the topic and indicators)
+8.  **Core Competencies:** (Identify relevant competencies based on topic/context, e.g., Critical Thinking, Communication, Collaboration, Creativity, Digital Literacy, Personal Development and List the core competencies that the lesson aims to develop)
+9.  **Indicators & Exemplars:** (Derive specific, measurable indicators and examples from the content standard and context and Provide specific indicators and exemplars to guide the lesson's objectives.)
+10. **Three Essential Questions:** (Formulate 3 thought-provoking questions related to the topic and indicators  that drive the lesson's inquiry. These questions should promote critical thinking and deeper and Detail the pedagogical strategies to be employed, ensuring they are aligned with best practices. Explain why these strategies are suitable for the lesson's objectives and the target student group. Examples include: group work, discussions, presentations, demonstrations, project-based learning, and inquiry-based learning. Specify how each strategy will be implemented.)
 11. **Pedagogical Strategies:** (Detail specific strategies like Group Work, Inquiry-Based Learning, Demonstration, etc. Explain *why* they are suitable and *how* they will be implemented for this topic/level)
 12. **Lesson Phases:**
     *   **Starter Activity (5-10 minutes):** (Describe a specific, engaging activity with purpose and connection to objectives)
