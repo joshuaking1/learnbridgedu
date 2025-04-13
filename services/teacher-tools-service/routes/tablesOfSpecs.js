@@ -3,36 +3,60 @@ const express = require('express');
 const db = require('../db');
 const router = express.Router();
 
+// --- Create (Save) a New Table of Specifications (ToS) ---
 // POST /api/teacher-tools/tos - Save new ToS
 router.post('/', async (req, res) => {
     const userId = req.user.userId;
-    const { title, subject, book, assessmentTitle, coveredTopics, // Expect array
+    const { title, subject, book, assessmentTitle, coveredTopics, // Expect array or null/undefined
             objectiveWeight, subjectiveWeight, tosContent } = req.body;
 
+    // --- Log Received Body ---
+    console.log("[TeacherTools][POST /tos] Received Body:", req.body);
+
     if (!userId || !subject || !book || !assessmentTitle || !tosContent) {
-        return res.status(400).json({ error: 'Missing required fields for saving ToS.' });
+         console.error("[TeacherTools][POST /tos] Validation Failed: Missing required fields.");
+         return res.status(400).json({ error: 'Missing required fields for saving ToS.' });
     }
-    // Add more validation if needed (e.g., check if coveredTopics is array)
+    // Ensure coveredTopics is an array, default to empty if not provided or not array
+    const topicsArray = (Array.isArray(coveredTopics) ? coveredTopics : []);
+    const objWeight = objectiveWeight !== undefined ? parseInt(objectiveWeight) : null; // Parse or null
+    const subjWeight = subjectiveWeight !== undefined ? parseInt(subjectiveWeight) : null; // Parse or null
+
 
     try {
-        const query = `
+        const insertQuery = `
             INSERT INTO tables_of_specs
             (user_id, title, subject, book, assessment_title, covered_topics, objective_weight, subjective_weight, tos_content)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
         `;
         const values = [
-            userId, title || `ToS: ${assessmentTitle.substring(0,30)}...`, subject, book, assessmentTitle,
-            coveredTopics || [], // Default to empty array if null/undefined
-            objectiveWeight || null, subjectiveWeight || null, tosContent
+            userId,
+            title || `ToS: ${assessmentTitle.substring(0,30)}...`,
+            subject,
+            book,
+            assessmentTitle,
+            topicsArray, // Pass the processed array
+            objWeight, // Pass parsed or null
+            subjWeight, // Pass parsed or null
+            tosContent
         ];
-        const result = await db.query(query, values);
-        res.status(201).json(result.rows[0]);
+
+        // --- Log Values Before Query ---
+        console.log("[TeacherTools][POST /tos] Values for DB Insert:", values);
+
+        const result = await db.query(insertQuery, values);
+        const savedTos = result.rows[0];
+
+        console.log(`[TeacherTools] ToS saved successfully with ID: ${savedTos.id} for user ${userId}`);
+        res.status(201).json(savedTos);
+
     } catch (error) {
-        console.error(`[TeacherTools] Error saving ToS for user ${userId}:`, error);
-        res.status(500).json({ error: 'Internal Server Error saving ToS.' });
+        console.error(`[TeacherTools] Error saving ToS for user ${userId}:`, error); // Log the full error
+        res.status(500).json({ error: 'Internal Server Error saving ToS.' }); // Keep generic message for client
     }
 });
 
+// --- Get All Tables of Specifications (ToS) for User ---
 // GET /api/teacher-tools/tos - Get all ToS for user
 router.get('/', async (req, res) => {
     const userId = req.user.userId;

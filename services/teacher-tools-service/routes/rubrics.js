@@ -4,33 +4,56 @@ const db = require('../db');
 const router = express.Router();
 
 // POST /api/teacher-tools/rubrics - Save new Rubric
+// services/teacher-tools-service/routes/rubrics.js
+
 router.post('/', async (req, res) => {
     const userId = req.user.userId;
     const { title, assessmentTitle, assessmentType, classLevel,
             taskDescription, maxScore, rubricContent } = req.body;
 
+    // --- Log Received Body ---
+    console.log("[TeacherTools][POST /rubrics] Received Body:", req.body);
+
     if (!userId || !assessmentTitle || !assessmentType || !classLevel || !rubricContent) {
-        return res.status(400).json({ error: 'Missing required fields for saving rubric.' });
+         console.error("[TeacherTools][POST /rubrics] Validation Failed: Missing required fields.");
+         return res.status(400).json({ error: 'Missing required fields for saving rubric.' });
     }
-    const score = maxScore ? parseInt(maxScore) : null; // Store as null if not provided/invalid
+    // Ensure maxScore is null if not a valid positive number
+    const score = (maxScore && !isNaN(parseInt(maxScore)) && parseInt(maxScore) > 0) ? parseInt(maxScore) : null;
 
     try {
-        const query = `
+        const insertQuery = `
             INSERT INTO rubrics
             (user_id, title, assessment_title, assessment_type, class_level, task_description, max_score, rubric_content)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
         `;
         const values = [
-            userId, title || `Rubric: ${assessmentTitle.substring(0,30)}...`, assessmentTitle, assessmentType, classLevel,
-            taskDescription || null, score, rubricContent
+            userId,
+            title || `Rubric: ${assessmentTitle.substring(0,30)}...`,
+            assessmentTitle,
+            assessmentType,
+            classLevel,
+            taskDescription || null, // Allow null task description
+            score, // Use processed score (number or null)
+            rubricContent
         ];
-        const result = await db.query(query, values);
-        res.status(201).json(result.rows[0]);
+
+        // --- Log Values Before Query ---
+        console.log("[TeacherTools][POST /rubrics] Values for DB Insert:", values);
+
+        const result = await db.query(insertQuery, values);
+        const savedRubric = result.rows[0];
+
+        console.log(`[TeacherTools] Rubric saved successfully with ID: ${savedRubric.id} for user ${userId}`);
+        res.status(201).json(savedRubric);
+
     } catch (error) {
-        console.error(`[TeacherTools] Error saving rubric for user ${userId}:`, error);
-        res.status(500).json({ error: 'Internal Server Error saving rubric.' });
+        console.error(`[TeacherTools] Error saving rubric for user ${userId}:`, error); // Log the full error
+        res.status(500).json({ error: 'Internal Server Error saving rubric.' }); // Keep generic message for client
     }
 });
+
+// ... rest of rubrics.js ...
 
 // GET /api/teacher-tools/rubrics - Get all rubrics for user
 router.get('/', async (req, res) => {
