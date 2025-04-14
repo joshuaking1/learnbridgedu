@@ -23,13 +23,9 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "pdf-parse": "^1.1.1",
-<<<<<<< HEAD
     "pg": "^8.14.1",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1"
-=======
-    "pg": "^8.14.1"
->>>>>>> 257007db798ad15fdcbf6cdb4d5be65a48687505
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
