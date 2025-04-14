@@ -124,12 +124,8 @@ app.post(
                      body: JSON.stringify({
                          bucket: bucketName,
                          filePath: uploadedFilePath,
-<<<<<<< HEAD
                          originalName: file.originalname, // Send original name too
                          audienceType: finalAudienceType // Pass audience type to AI service
-=======
-                         originalName: file.originalname // Send original name too
->>>>>>> 257007db798ad15fdcbf6cdb4d5be65a48687505
                      }),
                 });
 
