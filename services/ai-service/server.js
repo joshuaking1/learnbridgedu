@@ -250,9 +250,9 @@ If SBC context is unavailable or insufficient, AND if Web Search Context is prov
 Students do not have web search access.
 DO NOT suggest external tools or websites unless specifically asked for a link related to the topic AND web search was performed.
 DO NOT summarize search results about simple greetings or common knowledge. Respond naturally and concisely.
-For direct greetings like "hi", respond with a simple, friendly greeting (e.g., "Hello there! How can I help you with the SBC today?").
+For direct greetings like "hi" and any type of greeting, respond with a simple, friendly greeting (e.g., "Hello there! How can I help you with the SBC today?").
 For requests for help (like homework), ask for the specific problem or topic first. Be helpful and educational within the scope of Ghanaian education and the SBC.
-My designated name is LearnBridgeEdu AI.`;
+My designated name is LearnBridgeEdu AI. and you only answer question related  to sbc and education not any other type of question`;
         // Present context more clearly
         let finalContext = "";
         if (contextUsed === "sbc" || contextUsed === "both") {
@@ -292,14 +292,19 @@ My designated name is LearnBridgeEdu AI.`;
 
 // --- Endpoint for Lesson Plan Generation ---
 app.post('/api/ai/generate/lesson-plan', authenticateToken, async (req, res) => {
-    const { subject, classLevel, topic, duration, strand, subStrand, contentStandard } = req.body;
-    if (!subject || !classLevel || !topic || !duration || !strand || !subStrand || !contentStandard) { return res.status(400).json({ error: 'Missing required fields for lesson plan generation.' }); }
+    // --- Update Destructuring & Validation ---
+    const { subject, classLevel, topic, duration, strand, subStrand, week } = req.body; // Get week, subStrand is optional
+    // Update validation: remove subStrand, add week
+    if (!subject || !classLevel || !topic || !duration || !strand || !week ) {
+        return res.status(400).json({ error: 'Missing required fields (subject, classLevel, topic, duration, strand, week).' });
+    }
     if (!groq) { return res.status(503).json({ error: 'AI Service Unavailable: Groq API key not configured.' }); }
     if (!db) { return res.status(503).json({ error: 'AI Service Unavailable: Database connection error.' }); }
-    console.log(`[AI Service] Lesson Plan request received from user ${req.user.userId} for Topic: ${topic}`);
+    console.log(`[AI Service] Lesson Plan request received from user ${req.user.userId} for Topic: ${topic}, Week: ${week}`);
     let context = "No specific context found in SBC documents for this topic/strand.";
     try {
-        const searchQueryText = `Lesson plan for ${subject}, ${classLevel}. Topic: ${topic}. Strand: ${strand}. Sub-strand: ${subStrand}. Content Standard: ${contentStandard}`;
+        // --- Update Search Query Text ---
+        const searchQueryText = `Lesson plan for ${subject}, ${classLevel}. Topic: ${topic}. Strand: ${strand}. ${subStrand ? `Sub-strand: ${subStrand}.` : ''} Week: ${week}`; // Use week, conditionally add subStrand
         console.log(`[AI Service] Generating embedding for search query: "${searchQueryText.substring(0,100)}..."`);
         const queryEmbedding = await generateEmbedding(searchQueryText);
         if (queryEmbedding && queryEmbedding.length === 384) {
@@ -338,18 +343,18 @@ ${context}
 *   Topic: ${topic}
 *   Duration: ${duration}
 *   Strand: ${strand}
-*   Sub-strand: ${subStrand}
-*   Content Standard: ${contentStandard}
+*   Sub-strand: ${subStrand || 'N/A'} [//]: # (Display N/A if optional field is empty)
+*   Week: ${week} [//]: # (Changed from Content Standard)
 
 **Required Lesson Plan Format:**
 
 1.  **Subject:** ${subject}
 2.  **Class Level:** ${classLevel}
-3.  **Week & Lesson Number:** (Generate placeholder like Week X, Lesson Y)
+3.  **Week & Lesson Number:** ${week} (Lesson Y) [//]: # (Use week here)
 4.  **Duration:** ${duration}
 5.  **Strand:** ${strand}
-6.  **Sub-strand:** ${subStrand}
-7.  **Content Standard:** ${contentStandard}
+6.  **Sub-strand:** ${subStrand || 'N/A'} [//]: # (Use N/A if empty)
+7.  **Content Standard:** (Derive the relevant Content Standard from the provided context based on Subject, Class Level, Topic, Strand, Sub-strand, and Week. State it clearly.) [//]: # (AI needs to find this)
 8.  **Core Competencies:** (Identify relevant competencies based on topic/context, e.g., Critical Thinking, Communication, Collaboration, Creativity, Digital Literacy, Personal Development and List the core competencies that the lesson aims to develop)
 9.  **Indicators & Exemplars:** (Derive specific, measurable indicators and examples from the content standard and context and Provide specific indicators and exemplars to guide the lesson's objectives.)
 10. **Three Essential Questions:** (Formulate 3 thought-provoking questions related to the topic and indicators  that drive the lesson's inquiry. These questions should promote critical thinking and deeper and Detail the pedagogical strategies to be employed, ensuring they are aligned with best practices. Explain why these strategies are suitable for the lesson's objectives and the target student group. Examples include: group work, discussions, presentations, demonstrations, project-based learning, and inquiry-based learning. Specify how each strategy will be implemented.)
@@ -365,9 +370,12 @@ ${context}
 
 **Instructions:**
 *   Adhere strictly to the numbered format.
-*   Ensure all sections are filled with detailed, specific, relevant information.
-*   Base content on provided SBC context.
-*   Generate realistic, pedagogically sound activities/assessments for the class level.
+*   **Crucially, determine the specific Content Standard** based on the provided details (Subject, Class, Topic, Strand, Sub-strand, Week) and the SBC Context. State this standard clearly in section 7.
+*   Derive Indicators & Exemplars (section 9) directly from the identified Content Standard.
+*   Ensure all subsequent sections (Questions, Activities, Assessments) align with the identified Content Standard and Indicators.
+*   Fill all sections with detailed, specific information.
+*   Base content on provided SBC context whenever possible.
+*   Generate realistic and pedagogically sound content.
 *   Avoid vague descriptions. Be specific.
 *   Do not omit sections.
 `;

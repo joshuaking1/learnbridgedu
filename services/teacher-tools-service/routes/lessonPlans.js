@@ -18,19 +18,20 @@ router.post('/', async (req, res) => {
         topic,
         duration,
         strand,
-        subStrand,
-        contentStandard,
+        subStrand, // Keep receiving subStrand
+        week, // <-- Change from contentStandard
         planContent // The generated Markdown content
     } = req.body;
 
     // --- Basic Validation ---
     // Check for essential fields needed to save
     // Using classLevel from request body
-    if (!userId || !subject || !classLevel || !topic || !planContent) {
-        return res.status(400).json({ error: 'Missing required fields (userId, subject, classLevel, topic, planContent).' });
+    if (!userId || !subject || !classLevel || !topic || !strand || !week || !planContent) { // Added strand/week as required, removed subStrand
+        return res.status(400).json({ error: 'Missing required fields (userId, subject, classLevel, topic, strand, week, planContent).' });
     }
+    console.log(`[TeacherTools] Received request to save lesson plan for user ${userId}, topic: ${topic}, week: ${week}`);
 
-    console.log(`[TeacherTools] Received request to save lesson plan for user ${userId}, topic: ${topic}`);
+
 
     try {
         const insertQuery = `
@@ -46,9 +47,9 @@ router.post('/', async (req, res) => {
             classLevel, // Use classLevel from req.body
             topic,
             duration || null,
-            strand || null,
-            subStrand || null,
-            contentStandard || null,
+            strand, // Strand is now required in validation
+            subStrand || null, // SubStrand is optional
+            week, // <-- Insert 'week' value into the 'content_standard' DB column
             planContent
         ];
 
@@ -73,7 +74,7 @@ router.get('/', async (req, res) => {
     try {
         // Select key fields, order by most recent
         const query = `
-            SELECT id, title, subject, class_level, topic, created_at, updated_at
+            SELECT id, title, subject, class_level, topic, content_standard AS week, created_at, updated_at
             FROM lesson_plans
             WHERE user_id = $1
             ORDER BY updated_at DESC;
@@ -103,7 +104,7 @@ router.get('/:id', async (req, res) => {
     try {
         // Fetch the specific plan, ensuring it belongs to the logged-in user
         const query = `
-            SELECT * FROM lesson_plans WHERE id = $1 AND user_id = $2;
+            SELECT id, user_id, title, subject, class_level, topic, duration, strand, sub_strand, content_standard AS week, plan_content, created_at, updated_at FROM lesson_plans WHERE id = $1 AND user_id = $2;
         `;
         const { rows } = await db.query(query, [planId, userId]);
 
@@ -132,12 +133,13 @@ router.put('/:id', async (req, res) => {
         return res.status(400).json({ error: 'Invalid lesson plan ID.' });
     }
 
-    const { title, planContent } = req.body;
-    if (!title && !planContent) { return res.status(400).json({ error: 'No fields provided for update.' }); }
+    const { title, planContent, week } = req.body;
+    if (!title && !planContent && !week) { return res.status(400).json({ error: 'No fields provided for update.' }); }
     if (planContent && typeof planContent !== 'string') { return res.status(400).json({ error: 'Invalid planContent provided.' }); }
     if (title && typeof title !== 'string') { return res.status(400).json({ error: 'Invalid title provided.' }); }
+    if (week && typeof week !== 'string') { return res.status(400).json({ error: 'Invalid week provided.' }); }
 
-    console.log(`[TeacherTools] Received request to update lesson plan ID: ${planId} for user ${userId}`);
+    console.log(`[TeacherTools] Received request to update lesson plan ID: ${planId} for user ${userId}${week ? `, week: ${week}` : ''}`);
 
     try {
         // Check ownership first
@@ -172,6 +174,10 @@ router.put('/:id', async (req, res) => {
             fieldsToUpdate.push(`plan_content = $${paramIndex++}`);
             values.push(planContent);
         }
+        if (week !== undefined) {
+            fieldsToUpdate.push(`content_standard = $${paramIndex++}`);
+            values.push(week);
+        }
         fieldsToUpdate.push(`updated_at = CURRENT_TIMESTAMP`);
 
         // Add the planId and userId for the WHERE clause (use parsed types)
@@ -192,8 +198,12 @@ router.put('/:id', async (req, res) => {
             return res.status(404).json({ error: 'Lesson plan not found or update failed.' });
         }
 
+        // Fetch again to get the aliased column if RETURNING * doesn't alias
+        const selectQuery = `SELECT *, content_standard AS week FROM lesson_plans WHERE id = $1`;
+        const updatedResult = await db.query(selectQuery, [result.rows[0].id]);
+
         console.log(`[TeacherTools] Lesson plan ID: ${planId} updated successfully for user ${userId}`);
-        res.status(200).json(result.rows[0]); // Return the updated plan
+        res.status(200).json(updatedResult.rows[0]); // Return updated plan with aliased 'week'
 
     } catch (error) {
         console.error(`[TeacherTools] Error updating lesson plan ID ${planId} for user ${userId}:`, error);
