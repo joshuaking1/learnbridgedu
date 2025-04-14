@@ -1,0 +1,15 @@
+{
+  "name": "learnbridge-edu",
+  "version": "1.0.0",
+  "description": "LearnBridge Education Platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "cd frontend && npm install && npm run build"
+  },
+  "dependencies": {
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  }
+}

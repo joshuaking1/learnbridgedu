@@ -55,6 +55,7 @@ app.post(
             return res.status(400).json({ error: 'No file uploaded or file rejected by filter.' });
         }
 
+<<<<<<< HEAD
         // --- Get audienceType from req.body ---
         // Multer puts non-file fields here when using form-data
         const { audienceType } = req.body;
@@ -63,6 +64,8 @@ app.post(
         console.log(`[Content Service] Audience type selected: ${finalAudienceType}`);
         // --- End Get Audience Type ---
 
+=======
+>>>>>>> 257007db798ad15fdcbf6cdb4d5be65a48687505
         const file = req.file;
         const bucketName = 'sbc-documents';
         const sanitizedFilename = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
@@ -99,7 +102,11 @@ app.post(
             // Define AI service URL (ensure correct port)
             const aiServiceUrl = 'http://localhost:3004/api/ai/process-document';
             try {
+<<<<<<< HEAD
                 console.log(`[Content Service] Triggering AI service (${aiServiceUrl}) to process document: ${uploadedFilePath} (Audience: ${finalAudienceType})`);
+=======
+                console.log(`[Content Service] Triggering AI service (${aiServiceUrl}) to process document: ${uploadedFilePath}`);
+>>>>>>> 257007db798ad15fdcbf6cdb4d5be65a48687505
                 // Forward the authorization header from the original request
                 const authorizationHeader = req.headers['authorization'];
                 if (!authorizationHeader) {
@@ -117,8 +124,12 @@ app.post(
                      body: JSON.stringify({
                          bucket: bucketName,
                          filePath: uploadedFilePath,
+<<<<<<< HEAD
                          originalName: file.originalname, // Send original name too
                          audienceType: finalAudienceType // Pass audience type to AI service
+=======
+                         originalName: file.originalname // Send original name too
+>>>>>>> 257007db798ad15fdcbf6cdb4d5be65a48687505
                      }),
                 });
 
@@ -142,7 +153,11 @@ app.post(
             const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(uploadedFilePath);
 
             res.status(201).json({
+<<<<<<< HEAD
                 message: `File uploaded successfully! Processing started for audience: ${finalAudienceType}.`, // Updated message
+=======
+                message: 'File uploaded successfully! Background processing initiated.', // Updated message
+>>>>>>> 257007db798ad15fdcbf6cdb4d5be65a48687505
                 filePath: uploadedFilePath,
                 publicUrl: urlData?.publicUrl
             });
