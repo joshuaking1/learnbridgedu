@@ -131,14 +131,18 @@ app.post('/api/ai/process-document', authenticateToken, async (req, res) => {
             if (embedding && embedding.length === 384) {
                 try {
                     // --- Add audience_type to INSERT ---
-                    const insertQuery = `
-                        INSERT INTO sbc_document_chunks
-                        (source_document_path, source_document_name, chunk_index, content, content_length, embedding, audience_type, user_id)
-                        VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8) -- Added user_id
-                    `;
+                    // Try to insert with user_id first, but fall back to without it if the column doesn't exist
+                    let insertQuery;
+                    let values;
+                    try {
+                        insertQuery = `
+                            INSERT INTO sbc_document_chunks
+                            (source_document_path, source_document_name, chunk_index, content, content_length, embedding, audience_type, user_id)
+                            VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8) -- Added user_id
+                        `;
                     const embeddingString = `[${embedding.join(',')}]`;
                     // --- Add finalAudienceType to values array ---
-                    const values = [
+                    values = [
                         filePath,
                         originalName || null,
                         i,
@@ -148,8 +152,34 @@ app.post('/api/ai/process-document', authenticateToken, async (req, res) => {
                         finalAudienceType, // <-- Pass audience type here
                         req.user.userId // Store who initiated the processing via upload
                     ];
+
                     await db.query(insertQuery, values);
                     successfulEmbeddings++;
+                    } catch (columnError) {
+                        // If the error is about the user_id column not existing, try without it
+                        if (columnError.message.includes('user_id')) {
+                            console.log(`[AI Service] Falling back to insert without user_id column for chunk ${i}`)
+                            insertQuery = `
+                                INSERT INTO sbc_document_chunks
+                                (source_document_path, source_document_name, chunk_index, content, content_length, embedding, audience_type)
+                                VALUES ($1, $2, $3, $4, $5, $6::vector, $7)
+                            `;
+                            values = [
+                                filePath,
+                                originalName || null,
+                                i,
+                                chunk,
+                                chunkLength,
+                                embeddingString,
+                                finalAudienceType
+                            ];
+                            await db.query(insertQuery, values);
+                            successfulEmbeddings++;
+                        } else {
+                            // Re-throw if it's not about the user_id column
+                            throw columnError;
+                        }
+                    }
                     if ((i + 1) % 20 === 0 || i === chunks.length - 1) { console.log(`[AI Service] Stored chunk ${i + 1}/${chunks.length} for ${filePath}`); }
                 } catch (dbError) { console.error(`[AI Service] DB Error storing chunk ${i} for ${filePath}:`, dbError.message); failedEmbeddings++; }
             } else { console.warn(`[AI Service] Failed to generate valid embedding for chunk ${i} of ${filePath}. Skipping.`); failedEmbeddings++; }
