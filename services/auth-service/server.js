@@ -7,6 +7,7 @@ const morgan = require('morgan');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('./db'); // Import db connection
+const authenticateToken = require('./middleware/authenticateToken'); // Import auth middleware
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -135,7 +136,49 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// TODO: Add routes for password reset request, password reset execution, token verification?
+// Refresh Token (POST /api/auth/refresh-token)
+app.post('/api/auth/refresh-token', authenticateToken, async (req, res) => {
+    // This endpoint requires a valid token to refresh it
+    // The authenticateToken middleware will verify the token and add the user to req.user
+
+    try {
+        // Get user ID from the token payload (added by authenticateToken middleware)
+        const userId = req.user.userId;
+        const userEmail = req.user.email;
+        const userRole = req.user.role;
+
+        if (!userId) {
+            return res.status(400).json({ error: 'User ID is required' });
+        }
+
+        // Verify that the user still exists in the database
+        const result = await db.query('SELECT id, email, role, first_name FROM users WHERE id = $1', [userId]);
+        const user = result.rows[0];
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Generate a new token with a new expiration time
+        const newToken = jwt.sign(
+            { userId: user.id, email: user.email, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: process.env.JWT_EXPIRES_IN }
+        );
+
+        // Return the new token
+        res.status(200).json({
+            message: 'Token refreshed successfully',
+            token: newToken
+        });
+
+    } catch (err) {
+        console.error('Token refresh error:', err);
+        res.status(500).json({ error: 'Internal server error during token refresh' });
+    }
+});
+
+// TODO: Add routes for password reset request, password reset execution
 
 // Start the server
 app.listen(PORT, () => {
