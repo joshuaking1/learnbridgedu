@@ -97,7 +97,7 @@ app.post(
 
             // --- 2. Trigger AI Service to Process/Embed the Document ---
             // Define AI service URL (ensure correct port)
-            const aiServiceUrl = 'http://localhost:3004/api/ai/process-document';
+            const aiServiceUrl = 'https://learnbridge-ai-service.onrender.com/api/ai/process-document';
             try {
                 console.log(`[Content Service] Triggering AI service (${aiServiceUrl}) to process document: ${uploadedFilePath} (Audience: ${finalAudienceType})`);
                 // Forward the authorization header from the original request
