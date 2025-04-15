@@ -1,6 +1,8 @@
 // services/content-service/supabaseClient.js
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
+import { createClient } from '@supabase/supabase-js';
+import { config } from 'dotenv';
+
+config();
 
 const supabaseUrl = process.env.SUPABASE_URL;
 // Use the SERVICE ROLE KEY for backend operations (uploads)
@@ -22,4 +24,4 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 
 console.log('Supabase client initialized for Content Service (using Service Role Key).');
 
-module.exports = supabase;
+export default supabase;

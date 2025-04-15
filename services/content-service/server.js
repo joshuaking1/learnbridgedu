@@ -1,16 +1,18 @@
 // services/content-service/server.js
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const multer = require('multer');
-const supabase = require('./supabaseClient'); // Import Supabase client
-const authenticateToken = require('./middleware/authenticateToken');
-const authorizeRole = require('./middleware/authorizeRole');
-const requestLogger = require('morgan'); // Use morgan
-// Import fetch dynamically for Node.js versions < 18 or environments without global fetch
-// If using Node 18+, you might not need this import explicitly
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+import { config } from 'dotenv';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import multer from 'multer';
+import supabase from './supabaseClient.js'; // Import Supabase client
+import authenticateToken from './middleware/authenticateToken.js';
+import authorizeRole from './middleware/authorizeRole.js';
+import morgan from 'morgan'; // Use morgan for request logging
+import fetch from 'node-fetch';
+
+config();
+
+const requestLogger = morgan;
 
 
 const app = express();

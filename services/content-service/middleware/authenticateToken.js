@@ -1,5 +1,5 @@
-// services/auth-service/middleware/authenticateToken.js
-const jwt = require('jsonwebtoken');
+// services/content-service/middleware/authenticateToken.js
+import jwt from 'jsonwebtoken';
 
 function authenticateToken(req, res, next) {
     // Get token from the Authorization header (e.g., "Bearer TOKEN")
@@ -32,4 +32,4 @@ function authenticateToken(req, res, next) {
     });
 }
 
-module.exports = authenticateToken;
+export default authenticateToken;

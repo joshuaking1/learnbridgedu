@@ -1,4 +1,4 @@
-// services/user-service/middleware/authorizeRole.js
+// services/content-service/middleware/authorizeRole.js
 
 // This function RETURNS a middleware function, allowing us to specify allowed roles
 function authorizeRole(allowedRoles) {
@@ -6,7 +6,7 @@ function authorizeRole(allowedRoles) {
     if (!Array.isArray(allowedRoles)) {
       allowedRoles = [allowedRoles];
     }
-  
+
     // The actual middleware function
     return (req, res, next) => {
       // This middleware assumes 'authenticateToken' has already run
@@ -16,10 +16,10 @@ function authorizeRole(allowedRoles) {
         // This shouldn't happen if authenticateToken ran correctly
         return res.status(401).json({ error: 'Unauthorized: User data missing.' });
       }
-  
+
       const userRole = req.user.role;
       console.log(`[Authz] Checking if user role "${userRole}" is in allowed roles: [${allowedRoles.join(', ')}]`);
-  
+
       // Check if the user's role is included in the list of allowed roles
       if (allowedRoles.includes(userRole)) {
         // User has the required role, allow access
@@ -32,5 +32,5 @@ function authorizeRole(allowedRoles) {
       }
     };
   }
-  
-  module.exports = authorizeRole;
+
+  export default authorizeRole;
