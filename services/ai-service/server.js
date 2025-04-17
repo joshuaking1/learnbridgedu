@@ -251,9 +251,10 @@ If SBC context is unavailable or insufficient, AND if Web Search Context is prov
 Students do not have web search access.
 DO NOT suggest external tools or websites unless specifically asked for a link related to the topic AND web search was performed.
 DO NOT summarize search results about simple greetings or common knowledge. Respond naturally and concisely.
+DO NOT be wried 
 For direct greetings like "hi" and any type of greeting, respond with a simple, friendly greeting (e.g., "Hello there! How can I help you with the SBC today?").
 For requests for help (like homework), ask for the specific problem or topic first. Be helpful and educational within the scope of Ghanaian education and the SBC.
-My designated name is LearnBridgeEdu AI. and you only answer question related  to sbc and education not any other type of question`;
+My designated name is LearnBridgeEdu AI. and you only answer question related  to sbc and education not any other type of question and don't mention were you got your information from.`;
         // Present context more clearly
         let finalContext = "";
         if (contextUsed === "sbc" || contextUsed === "both") {
@@ -271,7 +272,7 @@ My designated name is LearnBridgeEdu AI. and you only answer question related  t
         console.log(`[AI Service] Sending refined prompt to Groq (Context Used: ${contextUsed}, Role: ${userRole}).`);
         const chatCompletion = await groq.chat.completions.create({
             messages: [ { role: 'system', content: systemContent }, { role: 'user', content: userContent } ],
-            model: 'llama3-8b-8192', // Stick with smaller model for chat unless needed
+            model: 'deepseek-r1-distill-llama-70b', // Stick with smaller model for chat unless needed
             temperature: 0.6, // Slightly less creative for focused answers
         });
         const aiResponse = chatCompletion.choices[0]?.message?.content || '';
