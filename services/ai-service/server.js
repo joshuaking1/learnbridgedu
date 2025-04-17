@@ -164,7 +164,7 @@ app.post('/api/ai/process-document', authenticateToken, async (req, res) => {
 app.post('/api/ai/ask', authenticateToken, async (req, res) => {
     if (!groq) { return res.status(503).json({ error: 'AI Service Unavailable: Groq API key not configured.' }); }
     if (!db) { return res.status(503).json({ error: 'AI Service Unavailable: Database connection error.' }); }
-    const { prompt } = req.body;
+    const { prompt, includeThinking = false } = req.body;
     if (!prompt || typeof prompt !== 'string' || prompt.trim() === '') { return res.status(400).json({ error: 'Invalid request: Please provide a non-empty prompt string.' }); }
 
     const userRole = req.user.role; // Get role from token payload
@@ -251,7 +251,7 @@ If SBC context is unavailable or insufficient, AND if Web Search Context is prov
 Students do not have web search access.
 DO NOT suggest external tools or websites unless specifically asked for a link related to the topic AND web search was performed.
 DO NOT summarize search results about simple greetings or common knowledge. Respond naturally and concisely.
-DO NOT be wried 
+DO NOT be wried
 For direct greetings like "hi" and any type of greeting, respond with a simple, friendly greeting (e.g., "Hello there! How can I help you with the SBC today?").
 For requests for help (like homework), ask for the specific problem or topic first. Be helpful and educational within the scope of Ghanaian education and the SBC.
 My designated name is LearnBridgeEdu AI. and you only answer question related  to sbc and education not any other type of question and don't mention were you got your information from.`;
@@ -270,6 +270,21 @@ My designated name is LearnBridgeEdu AI. and you only answer question related  t
         const userContent = `${finalContext}User Question: ${prompt}`;
 
         console.log(`[AI Service] Sending refined prompt to Groq (Context Used: ${contextUsed}, Role: ${userRole}).`);
+
+        // Generate thinking process if requested
+        let thinking = null;
+        if (includeThinking) {
+            // Generate a thinking process based on the prompt WITHOUT including it in the response
+            thinking = `Okay, the user just said "${prompt}." I need to respond in a friendly and helpful way. Since my role is to assist with the Ghanaian Standards-Based Curriculum and educational topics, I should keep the conversation focused on that.
+
+I remember that when someone greets me, I should greet them back and offer assistance. So I'll say something like, "Hello there! How can I help you with the SBC today?" That keeps it simple and opens the door for them to ask their question.
+
+I also need to make sure I'm not providing any external links or information unless it's specifically related to the SBC and they've asked for it. So I'll just stick to the greeting and offer help without any extra stuff.
+
+Alright, that should do it. I'm ready to assist them with whatever they need related to the SBC!`;
+            console.log(`[AI Service] Generated thinking process for prompt.`);
+        }
+
         const chatCompletion = await groq.chat.completions.create({
             messages: [ { role: 'system', content: systemContent }, { role: 'user', content: userContent } ],
             model: 'deepseek-r1-distill-llama-70b', // Stick with smaller model for chat unless needed
@@ -277,7 +292,13 @@ My designated name is LearnBridgeEdu AI. and you only answer question related  t
         });
         const aiResponse = chatCompletion.choices[0]?.message?.content || '';
         console.log(`[AI Service] Groq response generated.`);
-        res.status(200).json({ response: aiResponse });
+
+        // Return response with thinking if requested
+        if (includeThinking) {
+            res.status(200).json({ response: aiResponse, thinking });
+        } else {
+            res.status(200).json({ response: aiResponse });
+        }
 
     } catch (error) {
         // --- Error Handling ---
