@@ -7,6 +7,8 @@ const db = require('./db'); // Import db connection
 const authenticateToken = require('./middleware/authenticateToken');
 const authorizeRole = require('./middleware/authorizeRole'); // <-- Import authorizeRole
 const requestLogger = require('morgan'); // Use morgan for logging
+const profileRoutes = require('./routes/profile'); // Import profile routes
+const profileImageUrlRoutes = require('./routes/profile-image-url'); // Import profile image URL routes
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -38,6 +40,12 @@ app.get('/api/users/health', async (req, res) => {
 });
 
 // --- Protected User Routes ---
+
+// Mount profile routes
+app.use('/api/users/profile', profileRoutes);
+
+// Mount profile image URL routes
+app.use('/api/users/profile/image-url', profileImageUrlRoutes);
 
 // GET Current Logged-in User's Profile (Any authenticated user)
 app.get('/api/users/me', authenticateToken, async (req, res) => {
