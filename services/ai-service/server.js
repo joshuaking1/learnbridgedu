@@ -419,6 +419,12 @@ ${context}
     }
 });
 
+// --- Import Quiz Generator Routes ---
+const quizGeneratorRouter = require('./routes/quizGenerator');
+
+// --- Mount Quiz Generator Routes ---
+app.use('/api/ai/generate', authenticateToken, quizGeneratorRouter);
+
 // --- Endpoint for Assessment Generation ---
 app.post('/api/ai/generate/assessment', authenticateToken, async (req, res) => {
     const { subject, classLevel, topic, assessmentType, dokLevels, numQuestions, contentStandard } = req.body;

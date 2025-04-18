@@ -23,8 +23,15 @@ app.get('/api/quizzes/health', (req, res) => {
 });
 
 // --- Quiz Routes ---
-const quizRouter = require('./routes/quizzes'); // We will create this file next
+const quizRouter = require('./routes/quizzes');
 app.use('/api/quizzes', authenticateToken, quizRouter); // Apply auth to all quiz routes
+
+// --- Daily Quiz Routes ---
+const dailyQuizRouter = require('./routes/dailyQuizzes');
+app.use('/api/daily-quizzes', authenticateToken, dailyQuizRouter); // Apply auth to all daily quiz routes
+
+// --- Start the scheduler for daily quiz generation ---
+require('./scheduler');
 
 
 // --- Error Handling ---

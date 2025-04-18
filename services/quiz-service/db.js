@@ -29,6 +29,11 @@ pool.on('error', (err, client) => { // The 'error' event also receives the clien
 
 module.exports = {
     query: (text, params) => pool.query(text, params),
+    // Get a client for transactions
+    getClient: async () => {
+        const client = await pool.connect();
+        return client;
+    },
     // Optional: Add a function to explicitly test connection
     testConnection: async () => {
         let client;
