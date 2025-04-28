@@ -118,7 +118,50 @@ app.post('/api/auth/login', async (req, res) => {
             { expiresIn: process.env.JWT_EXPIRES_IN } // Expiration time
         );
 
-        // 4. Send Token and User Info back
+        // 4. Record login session and activity
+        try {
+            // Update or create user session
+            const sessionQuery = `
+                INSERT INTO user_sessions (user_id, session_token, ip_address, user_agent, is_online, last_login, last_activity)
+                VALUES ($1, $2, $3, $4, TRUE, NOW(), NOW())
+                ON CONFLICT (user_id)
+                DO UPDATE SET
+                    session_token = $2,
+                    ip_address = $3,
+                    user_agent = $4,
+                    is_online = TRUE,
+                    last_login = NOW(),
+                    last_activity = NOW(),
+                    updated_at = NOW()
+            `;
+
+            await db.query(sessionQuery, [
+                user.id,
+                token,
+                req.ip,
+                req.headers['user-agent'] || 'Unknown'
+            ]);
+
+            // Log the login activity
+            const logQuery = `
+                INSERT INTO user_activity_logs (user_id, action, details, ip_address)
+                VALUES ($1, $2, $3, $4)
+            `;
+
+            await db.query(logQuery, [
+                user.id,
+                'login',
+                'User logged in successfully',
+                req.ip
+            ]);
+
+            console.log(`[Auth Service] Login recorded for user ${user.id}`);
+        } catch (sessionErr) {
+            // Don't fail the login if session recording fails, just log the error
+            console.error('[Auth Service] Error recording login session:', sessionErr);
+        }
+
+        // 5. Send Token and User Info back
         res.status(200).json({
             message: 'Login successful',
             token: token,
@@ -175,6 +218,46 @@ app.post('/api/auth/refresh-token', authenticateToken, async (req, res) => {
     } catch (err) {
         console.error('Token refresh error:', err);
         res.status(500).json({ error: 'Internal server error during token refresh' });
+    }
+});
+
+// Logout (POST /api/auth/logout)
+app.post('/api/auth/logout', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+
+        if (!userId) {
+            return res.status(400).json({ error: 'User ID is required' });
+        }
+
+        console.log(`[Auth Service] Logout requested for user: ${userId}`);
+
+        // Update user session to mark as offline
+        const sessionQuery = `
+            UPDATE user_sessions
+            SET is_online = FALSE, updated_at = NOW()
+            WHERE user_id = $1
+        `;
+
+        await db.query(sessionQuery, [userId]);
+
+        // Log the logout activity
+        const logQuery = `
+            INSERT INTO user_activity_logs (user_id, action, details, ip_address)
+            VALUES ($1, $2, $3, $4)
+        `;
+
+        await db.query(logQuery, [
+            userId,
+            'logout',
+            'User logged out',
+            req.ip
+        ]);
+
+        res.status(200).json({ message: 'Logout successful' });
+    } catch (err) {
+        console.error('[Auth Service] Logout Error:', err);
+        res.status(500).json({ error: 'Internal server error during logout' });
     }
 });
 

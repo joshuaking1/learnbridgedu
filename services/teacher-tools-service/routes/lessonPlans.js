@@ -1,12 +1,14 @@
 // services/teacher-tools-service/routes/lessonPlans.js
 const express = require('express');
 const db = require('../db'); // Adjust path to db connection
+const usageLimitService = require('../services/usageLimitService');
+const checkUsageLimit = require('../middleware/checkUsageLimit');
 
 const router = express.Router();
 
 // --- Create (Save) a New Lesson Plan ---
 // POST /api/teacher-tools/lessons
-router.post('/', async (req, res) => {
+router.post('/', checkUsageLimit(usageLimitService.SERVICES.LESSON_PLAN), async (req, res) => {
     // User ID comes from the authenticateToken middleware (req.user.userId)
     const userId = req.user.userId;
 
@@ -56,8 +58,22 @@ router.post('/', async (req, res) => {
         const result = await db.query(insertQuery, values);
         const savedPlan = result.rows[0];
 
+        // Record usage for non-admin users
+        if (req.user.role !== 'admin') {
+            await usageLimitService.recordUsage(req.user, usageLimitService.SERVICES.LESSON_PLAN);
+        }
+
+        // Get updated limit info
+        const limitInfo = await usageLimitService.checkUserLimit(
+            req.user,
+            usageLimitService.SERVICES.LESSON_PLAN
+        );
+
         console.log(`[TeacherTools] Lesson plan saved successfully with ID: ${savedPlan.id} for user ${userId}`);
-        res.status(201).json(savedPlan); // Send back the created plan object
+        res.status(201).json({
+            ...savedPlan,
+            limitInfo
+        }); // Send back the created plan object with limit info
 
     } catch (error) {
         console.error(`[TeacherTools] Error saving lesson plan for user ${userId}:`, error);

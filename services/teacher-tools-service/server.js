@@ -5,6 +5,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const db = require('./db'); // Make sure db.js exists and is configured
 const authenticateToken = require('./middleware/authenticateToken'); // Make sure middleware exists
+const checkUsageLimit = require('./middleware/checkUsageLimit'); // Usage limit middleware
+const usageLimitService = require('./services/usageLimitService'); // Usage limit service
 // const authorizeRole = require('./middleware/authorizeRole'); // Uncomment if needed later
 const requestLogger = require('morgan');
 
@@ -26,20 +28,28 @@ app.get('/api/teacher-tools/health', (req, res) => {
     res.status(200).json({ status: 'Teacher Tools Service is Up!' });
 });
 
-// --- Lesson Plan Routes ---
-// Import the router we created
+// --- Import Routers ---
 const lessonPlanRouter = require('./routes/lessonPlans');
-// Use the router and apply authentication middleware to all routes within it
+const assessmentRouter = require('./routes/assessments');
+const tosRouter = require('./routes/tablesOfSpecs');
+const rubricRouter = require('./routes/rubrics');
+const usageLimitsRouter = require('./routes/usageLimits');
+
+// --- Mount Routers ---
+// Usage Limits Router
+app.use('/api/teacher-tools/limits', authenticateToken, usageLimitsRouter);
+
+// Lesson Plan Router with Usage Limits
 app.use('/api/teacher-tools/lessons', authenticateToken, lessonPlanRouter);
 
-const assessmentRouter = require('./routes/assessments'); // <-- Require the new router
-app.use('/api/teacher-tools/assessments', authenticateToken, assessmentRouter); 
+// Assessment Router with Usage Limits
+app.use('/api/teacher-tools/assessments', authenticateToken, assessmentRouter);
 
-const tosRouter = require('./routes/tablesOfSpecs'); // Require the new router
-app.use('/api/teacher-tools/tos', authenticateToken, tosRouter); // Use the new router
+// Table of Specifications Router with Usage Limits
+app.use('/api/teacher-tools/tos', authenticateToken, tosRouter);
 
-const rubricRouter = require('./routes/rubrics'); // <-- Require Rubric router
-app.use('/api/teacher-tools/rubrics', authenticateToken, rubricRouter); // <-- Use Rubric router
+// Rubric Router with Usage Limits
+app.use('/api/teacher-tools/rubrics', authenticateToken, rubricRouter);
 
 
 // TODO: Add routers for other teacher tools later

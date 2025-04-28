@@ -1,12 +1,14 @@
 // services/teacher-tools-service/routes/rubrics.js
 const express = require('express');
 const db = require('../db');
+const usageLimitService = require('../services/usageLimitService');
+const checkUsageLimit = require('../middleware/checkUsageLimit');
 const router = express.Router();
 
 // POST /api/teacher-tools/rubrics - Save new Rubric
 // services/teacher-tools-service/routes/rubrics.js
 
-router.post('/', async (req, res) => {
+router.post('/', checkUsageLimit(usageLimitService.SERVICES.RUBRIC), async (req, res) => {
     const userId = req.user.userId;
     const { title, assessmentTitle, assessmentType, classLevel,
             taskDescription, maxScore, rubricContent } = req.body;
@@ -44,8 +46,22 @@ router.post('/', async (req, res) => {
         const result = await db.query(insertQuery, values);
         const savedRubric = result.rows[0];
 
+        // Record usage for non-admin users
+        if (req.user.role !== 'admin') {
+            await usageLimitService.recordUsage(req.user, usageLimitService.SERVICES.RUBRIC);
+        }
+
+        // Get updated limit info
+        const limitInfo = await usageLimitService.checkUserLimit(
+            req.user,
+            usageLimitService.SERVICES.RUBRIC
+        );
+
         console.log(`[TeacherTools] Rubric saved successfully with ID: ${savedRubric.id} for user ${userId}`);
-        res.status(201).json(savedRubric);
+        res.status(201).json({
+            ...savedRubric,
+            limitInfo
+        });
 
     } catch (error) {
         console.error(`[TeacherTools] Error saving rubric for user ${userId}:`, error); // Log the full error

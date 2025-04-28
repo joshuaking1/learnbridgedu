@@ -1,11 +1,13 @@
 // services/teacher-tools-service/routes/tablesOfSpecs.js
 const express = require('express');
 const db = require('../db');
+const usageLimitService = require('../services/usageLimitService');
+const checkUsageLimit = require('../middleware/checkUsageLimit');
 const router = express.Router();
 
 // --- Create (Save) a New Table of Specifications (ToS) ---
 // POST /api/teacher-tools/tos - Save new ToS
-router.post('/', async (req, res) => {
+router.post('/', checkUsageLimit(usageLimitService.SERVICES.TABLE_OF_SPECIFICATION), async (req, res) => {
     const userId = req.user.userId;
     const { title, subject, book, assessmentTitle, coveredTopics, // Expect array or null/undefined
             objectiveWeight, subjectiveWeight, tosContent } = req.body;
@@ -47,8 +49,22 @@ router.post('/', async (req, res) => {
         const result = await db.query(insertQuery, values);
         const savedTos = result.rows[0];
 
+        // Record usage for non-admin users
+        if (req.user.role !== 'admin') {
+            await usageLimitService.recordUsage(req.user, usageLimitService.SERVICES.TABLE_OF_SPECIFICATION);
+        }
+
+        // Get updated limit info
+        const limitInfo = await usageLimitService.checkUserLimit(
+            req.user,
+            usageLimitService.SERVICES.TABLE_OF_SPECIFICATION
+        );
+
         console.log(`[TeacherTools] ToS saved successfully with ID: ${savedTos.id} for user ${userId}`);
-        res.status(201).json(savedTos);
+        res.status(201).json({
+            ...savedTos,
+            limitInfo
+        });
 
     } catch (error) {
         console.error(`[TeacherTools] Error saving ToS for user ${userId}:`, error); // Log the full error

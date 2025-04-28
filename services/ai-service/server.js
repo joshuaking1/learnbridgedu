@@ -8,6 +8,8 @@ const { Server } = require("socket.io"); // <-- Import Socket.IO Server
 const groq = require('./groqClient'); // Import Groq client
 const tavilyClient = require('./tavilyClient'); // Import Tavily client
 const authenticateToken = require('./middleware/authenticateToken');
+const checkUsageLimit = require('./middleware/checkUsageLimit');
+const usageLimitService = require('./services/usageLimitService');
 const requestLogger = require('morgan');
 const supabase = require('./supabaseClient'); // Import Supabase client for DB & Storage access
 const db = require('./db'); // Import DB connection pool for PostgreSQL
@@ -161,7 +163,7 @@ app.post('/api/ai/process-document', authenticateToken, async (req, res) => {
 });
 
 // --- Basic Ask Endpoint (Uses RAG) ---
-app.post('/api/ai/ask', authenticateToken, async (req, res) => {
+app.post('/api/ai/ask', authenticateToken, checkUsageLimit(usageLimitService.SERVICES.AI_ASSISTANT), async (req, res) => {
     if (!groq) { return res.status(503).json({ error: 'AI Service Unavailable: Groq API key not configured.' }); }
     if (!db) { return res.status(503).json({ error: 'AI Service Unavailable: Database connection error.' }); }
     const { prompt, includeThinking = false } = req.body;
@@ -293,11 +295,22 @@ Alright, that should do it. I'm ready to assist them with whatever they need rel
         const aiResponse = chatCompletion.choices[0]?.message?.content || '';
         console.log(`[AI Service] Groq response generated.`);
 
+        // Record usage for non-admin users
+        if (req.user.role !== 'admin') {
+            await usageLimitService.recordUsage(req.user, usageLimitService.SERVICES.AI_ASSISTANT);
+        }
+
+        // Get updated limit info
+        const limitInfo = await usageLimitService.checkUserLimit(
+            req.user,
+            usageLimitService.SERVICES.AI_ASSISTANT
+        );
+
         // Return response with thinking if requested
         if (includeThinking) {
-            res.status(200).json({ response: aiResponse, thinking });
+            res.status(200).json({ response: aiResponse, thinking, limitInfo });
         } else {
-            res.status(200).json({ response: aiResponse });
+            res.status(200).json({ response: aiResponse, limitInfo });
         }
 
     } catch (error) {
@@ -314,7 +327,7 @@ Alright, that should do it. I'm ready to assist them with whatever they need rel
 
 
 // --- Endpoint for Lesson Plan Generation ---
-app.post('/api/ai/generate/lesson-plan', authenticateToken, async (req, res) => {
+app.post('/api/ai/generate/lesson-plan', authenticateToken, checkUsageLimit(usageLimitService.SERVICES.GENERATE_LESSON_PLAN), async (req, res) => {
     // --- Update Destructuring & Validation ---
     const { subject, classLevel, topic, duration, strand, subStrand, week } = req.body; // Get week, subStrand is optional
     // Update validation: remove subStrand, add week
@@ -406,7 +419,19 @@ ${context}
         const chatCompletion = await groq.chat.completions.create({ messages: [ { role: 'user', content: lessonPlanPrompt } ], model: 'llama3-70b-8192', temperature: 0.6 });
         const aiResponse = chatCompletion.choices[0]?.message?.content || '';
         console.log(`[AI Service] Groq lesson plan generated for user ${req.user.userId}.`);
-        res.status(200).json({ lessonPlan: aiResponse });
+
+        // Record usage for non-admin users
+        if (req.user.role !== 'admin') {
+            await usageLimitService.recordUsage(req.user, usageLimitService.SERVICES.GENERATE_LESSON_PLAN);
+        }
+
+        // Get updated limit info
+        const limitInfo = await usageLimitService.checkUserLimit(
+            req.user,
+            usageLimitService.SERVICES.GENERATE_LESSON_PLAN
+        );
+
+        res.status(200).json({ lessonPlan: aiResponse, limitInfo });
     } catch (error) {
         // --- Error Handling ---
         console.error('[AI Service] Error during lesson plan generation:', error);
@@ -419,14 +444,16 @@ ${context}
     }
 });
 
-// --- Import Quiz Generator Routes ---
+// --- Import Routes ---
 const quizGeneratorRouter = require('./routes/quizGenerator');
+const usageLimitsRouter = require('./routes/usageLimits');
 
-// --- Mount Quiz Generator Routes ---
+// --- Mount Routes ---
 app.use('/api/ai/generate', authenticateToken, quizGeneratorRouter);
+app.use('/api/ai/limits', authenticateToken, usageLimitsRouter);
 
 // --- Endpoint for Assessment Generation ---
-app.post('/api/ai/generate/assessment', authenticateToken, async (req, res) => {
+app.post('/api/ai/generate/assessment', authenticateToken, checkUsageLimit(usageLimitService.SERVICES.GENERATE_ASSESSMENT), async (req, res) => {
     const { subject, classLevel, topic, assessmentType, dokLevels, numQuestions, contentStandard } = req.body;
     if (!subject || !classLevel || !topic || !assessmentType || !dokLevels || !Array.isArray(dokLevels) || dokLevels.length === 0 || !numQuestions || !contentStandard) { return res.status(400).json({ error: 'Missing required fields, or dokLevels is not a non-empty array.' }); }
     if (!dokLevels.every(level => typeof level === 'number' && level >= 1 && level <= 4)) { return res.status(400).json({ error: 'Invalid DoK Level(s) provided. Each must be a number between 1-4.' }); }
@@ -523,7 +550,19 @@ ${context}
         const chatCompletion = await groq.chat.completions.create({ messages: [ { role: 'user', content: assessmentPrompt } ], model: 'llama3-70b-8192', temperature: 0.6 });
         const aiResponse = chatCompletion.choices[0]?.message?.content || '';
         console.log(`[AI Service] Groq assessment generated for user ${req.user.userId}.`);
-        res.status(200).json({ assessment: aiResponse });
+
+        // Record usage for non-admin users
+        if (req.user.role !== 'admin') {
+            await usageLimitService.recordUsage(req.user, usageLimitService.SERVICES.GENERATE_ASSESSMENT);
+        }
+
+        // Get updated limit info
+        const limitInfo = await usageLimitService.checkUserLimit(
+            req.user,
+            usageLimitService.SERVICES.GENERATE_ASSESSMENT
+        );
+
+        res.status(200).json({ assessment: aiResponse, limitInfo });
     } catch (error) {
         // --- Error Handling ---
         console.error('[AI Service] Error during assessment generation:', error);
@@ -538,7 +577,7 @@ ${context}
 
 
 // --- Endpoint for Table of Specification (ToS) Generation ---
-app.post('/api/ai/generate/tos', authenticateToken, async (req, res) => {
+app.post('/api/ai/generate/tos', authenticateToken, checkUsageLimit(usageLimitService.SERVICES.GENERATE_TOS), async (req, res) => {
     const { subject, book, assessmentTitle, coveredTopics, objectiveWeight, subjectiveWeight } = req.body; // Use book
     if (!subject || !book || !assessmentTitle) { return res.status(400).json({ error: 'Missing required fields: subject, book, assessmentTitle.' }); }
     if (coveredTopics && (!Array.isArray(coveredTopics))) { return res.status(400).json({ error: 'coveredTopics must be an array if provided.' }); }
@@ -645,7 +684,19 @@ PAPER 3: ...
         const chatCompletion = await groq.chat.completions.create({ messages: [ { role: 'user', content: tosPrompt } ], model: 'llama3-70b-8192', temperature: 0.3 });
         const aiResponse = chatCompletion.choices[0]?.message?.content || '';
         console.log(`[AI Service] Groq DETAILED ToS generated for user ${req.user.userId}.`);
-        res.status(200).json({ tableOfSpecification: aiResponse });
+
+        // Record usage for non-admin users
+        if (req.user.role !== 'admin') {
+            await usageLimitService.recordUsage(req.user, usageLimitService.SERVICES.GENERATE_TOS);
+        }
+
+        // Get updated limit info
+        const limitInfo = await usageLimitService.checkUserLimit(
+            req.user,
+            usageLimitService.SERVICES.GENERATE_TOS
+        );
+
+        res.status(200).json({ tableOfSpecification: aiResponse, limitInfo });
     } catch (error) {
         console.error('[AI Service] Error during ToS generation:', error);
         let statusCode = 500; let message = 'Failed to generate Table of Specifications.';
@@ -659,7 +710,7 @@ PAPER 3: ...
 
 
 // --- Endpoint for Rubric Generation ---
-app.post('/api/ai/generate/rubric', authenticateToken, async (req, res) => {
+app.post('/api/ai/generate/rubric', authenticateToken, checkUsageLimit(usageLimitService.SERVICES.GENERATE_RUBRIC), async (req, res) => {
     const { assessmentTitle, assessmentType, classLevel, taskDescription, maxScore } = req.body;
     if (!assessmentTitle || !assessmentType || !classLevel || !taskDescription) { return res.status(400).json({ error: 'Missing required fields: assessmentTitle, assessmentType, classLevel, taskDescription.' }); }
     const score = maxScore ? parseInt(maxScore) : 100;
@@ -703,7 +754,19 @@ Present *only* the final Markdown table.
         const chatCompletion = await groq.chat.completions.create({ messages: [ { role: 'user', content: rubricPrompt } ], model: 'llama3-70b-8192', temperature: 0.5 });
         const aiResponse = chatCompletion.choices[0]?.message?.content || '';
         console.log(`[AI Service] Groq rubric generated for user ${req.user.userId}.`);
-        res.status(200).json({ rubric: aiResponse });
+
+        // Record usage for non-admin users
+        if (req.user.role !== 'admin') {
+            await usageLimitService.recordUsage(req.user, usageLimitService.SERVICES.GENERATE_RUBRIC);
+        }
+
+        // Get updated limit info
+        const limitInfo = await usageLimitService.checkUserLimit(
+            req.user,
+            usageLimitService.SERVICES.GENERATE_RUBRIC
+        );
+
+        res.status(200).json({ rubric: aiResponse, limitInfo });
     } catch (error) {
         console.error('[AI Service] Error during rubric generation:', error);
         let statusCode = 500; let message = 'Failed to generate rubric.';

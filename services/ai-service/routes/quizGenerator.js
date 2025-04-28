@@ -4,10 +4,12 @@ const router = express.Router();
 const db = require('../db');
 const groq = require('../groqClient');
 const { generateEmbedding } = require('../utils/embeddingProcessor');
+const usageLimitService = require('../services/usageLimitService');
+const checkUsageLimit = require('../middleware/checkUsageLimit');
 
 // --- Generate Quiz ---
 // POST /api/ai/generate/quiz
-router.post('/quiz', async (req, res) => {
+router.post('/quiz', checkUsageLimit(usageLimitService.SERVICES.GENERATE_QUIZ), async (req, res) => {
     const { subject, book, topic, questionCount, difficulty, format } = req.body;
 
     // Validate required fields
@@ -141,7 +143,22 @@ Make sure:
         // Parse the JSON response
         try {
             const quizData = JSON.parse(aiResponse);
-            res.status(200).json(quizData);
+
+            // Record usage for non-admin users
+            if (req.user.role !== 'admin') {
+                await usageLimitService.recordUsage(req.user, usageLimitService.SERVICES.GENERATE_QUIZ);
+            }
+
+            // Get updated limit info
+            const limitInfo = await usageLimitService.checkUserLimit(
+                req.user,
+                usageLimitService.SERVICES.GENERATE_QUIZ
+            );
+
+            res.status(200).json({
+                ...quizData,
+                limitInfo
+            });
         } catch (parseError) {
             console.error('[AI Service] Error parsing quiz JSON response:', parseError);
             res.status(500).json({

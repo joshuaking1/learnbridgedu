@@ -1,12 +1,14 @@
 // services/teacher-tools-service/routes/assessments.js
 const express = require('express');
 const db = require('../db'); // Adjust path
+const usageLimitService = require('../services/usageLimitService');
+const checkUsageLimit = require('../middleware/checkUsageLimit');
 
 const router = express.Router();
 
 // --- Create (Save) a New Assessment ---
 // POST /api/teacher-tools/assessments
-router.post('/', async (req, res) => {
+router.post('/', checkUsageLimit(usageLimitService.SERVICES.ASSESSMENT), async (req, res) => {
     const userId = req.user.userId;
     const {
         title, subject, classLevel, topic, contentStandard,
@@ -44,8 +46,22 @@ router.post('/', async (req, res) => {
         const result = await db.query(insertQuery, values);
         const savedAssessment = result.rows[0];
 
+        // Record usage for non-admin users
+        if (req.user.role !== 'admin') {
+            await usageLimitService.recordUsage(req.user, usageLimitService.SERVICES.ASSESSMENT);
+        }
+
+        // Get updated limit info
+        const limitInfo = await usageLimitService.checkUserLimit(
+            req.user,
+            usageLimitService.SERVICES.ASSESSMENT
+        );
+
         console.log(`[TeacherTools] Assessment saved successfully with ID: ${savedAssessment.id} for user ${userId}`);
-        res.status(201).json(savedAssessment);
+        res.status(201).json({
+            ...savedAssessment,
+            limitInfo
+        });
 
     } catch (error) {
         console.error(`[TeacherTools] Error saving assessment for user ${userId}:`, error);
