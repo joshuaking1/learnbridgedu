@@ -1,6 +1,7 @@
 // services/quiz-service/services/dailyQuizGenerator.js
 const db = require('../db');
 const axios = require('axios');
+const { Pool } = require('pg'); // Ensure Pool is imported if not already
 
 /**
  * Service for generating daily quizzes for SBC books
@@ -8,10 +9,15 @@ const axios = require('axios');
 class DailyQuizGenerator {
     constructor() {
         this.aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3004';
-        this.serviceToken = process.env.SERVICE_TOKEN; // JWT token for service-to-service auth
+        this.serviceToken = process.env.SERVICE_TOKEN; // Token for AI service auth
+        this.notificationServiceUrl = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3008'; // Notification service URL
+        this.internalApiKey = process.env.INTERNAL_SERVICE_API_KEY; // Internal API key
 
         if (!this.serviceToken) {
             console.warn('[DailyQuizGenerator] SERVICE_TOKEN environment variable not set. AI-generated quizzes will not be available. Using fallback template quizzes instead.');
+        }
+        if (!this.notificationServiceUrl || !this.internalApiKey) {
+            console.warn('[DailyQuizGenerator] Notification service URL or internal API key not configured. New quiz notifications will not be sent.');
         }
     }
 
@@ -200,13 +206,13 @@ class DailyQuizGenerator {
 
     /**
      * Save a generated quiz to the database
-     * @param {Object} bookInfo - Book information {book, subject}
+     * @param {Object} bookInfo - Information about the book
      * @param {Object} quizData - Generated quiz data
      * @returns {Promise<Object>} Saved quiz
      */
     async saveQuiz(bookInfo, quizData) {
-        const client = await db.getClient();
-
+        const client = await db.getClient(); // Use client for transaction
+        let savedQuiz = null;
         try {
             await client.query('BEGIN');
 
@@ -216,17 +222,15 @@ class DailyQuizGenerator {
                 VALUES ($1, $2, $3, $4, $5, CURRENT_DATE)
                 RETURNING *;
             `;
-
             const quizValues = [
-                bookInfo.subject,
+                bookInfo.subject || 'General',
                 bookInfo.book,
                 quizData.topic || 'Daily Review',
                 quizData.title || `Daily Quiz: ${bookInfo.book}`,
                 quizData.description || `Daily quiz for ${bookInfo.book} to test your knowledge.`
             ];
-
             const quizResult = await client.query(quizInsertQuery, quizValues);
-            const savedQuiz = quizResult.rows[0];
+            savedQuiz = quizResult.rows[0];
 
             // 2. Insert the questions
             for (const question of quizData.questions) {
@@ -235,27 +239,62 @@ class DailyQuizGenerator {
                     (daily_quiz_id, question_type, question_text, options, correct_answer, explanation)
                     VALUES ($1, $2, $3, $4, $5, $6);
                 `;
-
                 const questionValues = [
                     savedQuiz.id,
-                    question.type || 'multiple_choice',
-                    question.text,
-                    JSON.stringify(question.options),
-                    question.answer,
+                    question.question_type || 'multiple_choice',
+                    question.question_text,
+                    JSON.stringify(question.options || {}),
+                    question.correct_answer,
                     question.explanation || null
                 ];
-
                 await client.query(questionInsertQuery, questionValues);
             }
 
             await client.query('COMMIT');
             console.log(`[DailyQuizGenerator] Successfully saved quiz for ${bookInfo.book} with ID ${savedQuiz.id}`);
 
+            // --- Send Notification --- (After successful commit)
+            if (this.notificationServiceUrl && this.internalApiKey && savedQuiz) {
+                try {
+                    const notificationData = {
+                        type: 'new_daily_quiz',
+                        title: 'New Daily Quiz Available!',
+                        message: `A new daily quiz for "${savedQuiz.book}" is ready. Test your knowledge!`, // Generic message for all users
+                        relatedEntityType: 'daily_quiz',
+                        relatedEntityId: savedQuiz.id
+                    };
+
+                    // Send to a specific user group or broadcast (depends on notification service capability)
+                    // For now, let's assume we might want to notify *all* students or teachers.
+                    // This requires the notification service to handle broadcast/group messages, or we loop through users (less efficient).
+                    // Placeholder: Sending to a specific user ID '1' for testing.
+                    // In a real scenario, you'd likely trigger this differently, maybe via a separate process
+                    // that fetches relevant users (e.g., students enrolled in a course related to the book).
+                    // For simplicity, we'll skip sending for now, as broadcasting isn't implemented.
+                    console.log(`[DailyQuizGenerator] TODO: Implement notification sending for new daily quiz ID ${savedQuiz.id}.`);
+                    /*
+                    await axios.post(`${this.notificationServiceUrl}/api/notifications/internal/send`, {
+                        // userId: 'broadcast_students', // Or specific user ID
+                        userId: 1, // Example: Send to user 1 for testing
+                        notificationData: notificationData
+                    }, {
+                        headers: {
+                            'x-internal-api-key': this.internalApiKey
+                        }
+                    });
+                    console.log(`[DailyQuizGenerator] Sent notification for new daily quiz ID ${savedQuiz.id}`);
+                    */
+                } catch (notificationError) {
+                    console.error(`[DailyQuizGenerator] Failed to send notification for new daily quiz ID ${savedQuiz.id}:`, notificationError.message);
+                }
+            }
+            // --- End Send Notification ---
+
             return savedQuiz;
         } catch (error) {
             await client.query('ROLLBACK');
             console.error(`[DailyQuizGenerator] Error saving quiz for ${bookInfo.book}:`, error);
-            throw error;
+            throw error; // Re-throw error after rollback
         } finally {
             client.release();
         }

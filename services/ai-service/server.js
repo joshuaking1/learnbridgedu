@@ -256,7 +256,7 @@ DO NOT summarize search results about simple greetings or common knowledge. Resp
 DO NOT be wried
 For direct greetings like "hi" and any type of greeting, respond with a simple, friendly greeting (e.g., "Hello there! How can I help you with the SBC today?").
 For requests for help (like homework), ask for the specific problem or topic first. Be helpful and educational within the scope of Ghanaian education and the SBC.
-My designated name is LearnBridgeEdu AI. and you only answer question related  to sbc and education not any other type of question and don't mention were you got your information from.`;
+My designated name is LearnBridgeEdu AI. and you only answer question related  to sbc and education not any other type of question and don't mention were you got your information from. and always defend your slef and the sbc never admit anything that will distroy the reputation of yourslef and the comapny and the sbc and not the sbc is the new standard based curriculum it dose not mean anything apart form this`;
         // Present context more clearly
         let finalContext = "";
         if (contextUsed === "sbc" || contextUsed === "both") {
@@ -578,8 +578,8 @@ ${context}
 
 // --- Endpoint for Table of Specification (ToS) Generation ---
 app.post('/api/ai/generate/tos', authenticateToken, checkUsageLimit(usageLimitService.SERVICES.GENERATE_TOS), async (req, res) => {
-    const { subject, book, assessmentTitle, coveredTopics, objectiveWeight, subjectiveWeight } = req.body; // Use book
-    if (!subject || !book || !assessmentTitle) { return res.status(400).json({ error: 'Missing required fields: subject, book, assessmentTitle.' }); }
+    const { subject, assessmentTitle, coveredTopics, objectiveWeight, subjectiveWeight } = req.body;
+    if (!subject || !assessmentTitle) { return res.status(400).json({ error: 'Missing required fields: subject, assessmentTitle.' }); }
     if (coveredTopics && (!Array.isArray(coveredTopics))) { return res.status(400).json({ error: 'coveredTopics must be an array if provided.' }); }
     const topicsArray = coveredTopics || [];
     const objWeight = objectiveWeight !== undefined ? parseInt(objectiveWeight) : 50;
@@ -587,11 +587,11 @@ app.post('/api/ai/generate/tos', authenticateToken, checkUsageLimit(usageLimitSe
     // ... (weight validation/warning) ...
     if (!groq) { return res.status(503).json({ error: 'AI Service Unavailable: Groq API key not configured.' }); }
     if (!db) { return res.status(503).json({ error: 'AI Service Unavailable: Database connection error.' }); }
-    console.log(`[AI Service] ToS request received from user ${req.user.userId} for Subject: ${subject}, Book: ${book}`);
-    let context = "No specific context found in SBC documents for this book/subject.";
+    console.log(`[AI Service] ToS request received from user ${req.user.userId} for Subject: ${subject}`);
+    let context = "No specific context found in SBC documents for this subject.";
     try {
-        const topicsString = topicsArray.length > 0 ? `Specific Topics: ${topicsArray.join(', ')}` : `All topics for ${book}`;
-        const searchQueryText = `Table of Specifications for ${subject}, ${book}. ${topicsString}. Assessment: ${assessmentTitle}`; // Use book
+        const topicsString = topicsArray.length > 0 ? `Specific Topics: ${topicsArray.join(', ')}` : `All topics for ${subject}`;
+        const searchQueryText = `Table of Specifications for ${subject}. ${topicsString}. Assessment: ${assessmentTitle}`;
         console.log(`[AI Service] Generating embedding for ToS search query: "${searchQueryText.substring(0,100)}..."`);
         const queryEmbedding = await generateEmbedding(searchQueryText);
         if (queryEmbedding && queryEmbedding.length === 384) {
@@ -600,14 +600,13 @@ app.post('/api/ai/generate/tos', authenticateToken, checkUsageLimit(usageLimitSe
              // --- Vector Search Query ---
              // Filter context search by the selected book name
             const searchQuery = `
-                SELECT content, 1 - (embedding <=> $1::vector) AS similarity
+                SELECT content, source_document_name, 1 - (embedding <=> $1::vector) AS similarity
                 FROM sbc_document_chunks
-                WHERE source_document_name = $4 -- Filter by book name
-                  AND 1 - (embedding <=> $1::vector) > $2
+                WHERE 1 - (embedding <=> $1::vector) > $2
                 ORDER BY similarity DESC
                 LIMIT $3
             `;
-            const searchValues = [embeddingString, similarityThreshold, matchCount, book]; // Add book to query values
+            const searchValues = [embeddingString, similarityThreshold, matchCount];
             const { rows: searchResults } = await db.query(searchQuery, searchValues);
             if (searchResults && searchResults.length > 0) {
                 console.log(`[AI Service] Found ${searchResults.length} relevant chunks for ToS (Book: ${book}).`);
@@ -618,7 +617,7 @@ app.post('/api/ai/generate/tos', authenticateToken, checkUsageLimit(usageLimitSe
             } else { console.log(`[AI Service] No relevant SBC chunks found above similarity threshold for ToS (Book: ${book}).`); }
         } else { console.warn("[AI Service] Failed to generate embedding for ToS search query. Proceeding without specific context."); }
         // --- Construct Prompt & Call Groq ---
-        const topicsInstruction = topicsArray.length > 0 ? `Focus specifically on these Topics/Strands Covered: ${topicsArray.join(', ')}` : `Cover all relevant topics/strands typically found in ${subject} ${book} (e.g., Weeks 1-12 for a semester). Use the provided context to determine these topics if possible.`;
+        const topicsInstruction = topicsArray.length > 0 ? `Focus specifically on these Topics/Strands Covered: ${topicsArray.join(', ')}` : `Cover all relevant topics/strands typically found in ${subject} curriculum based on the SBC. Use the provided context to determine these topics if possible.`;
         const tosPrompt = `
 Generate a comprehensive Table of Specifications (ToS) / Assessment Blueprint based on the details below. The output MUST strictly follow the multi-part structure shown in the example, including Paper 1 (Multiple Choice Table), Paper 2 (Essay Table), Paper 3 (Practical Table), Detailed Content Coverage, and Assessment Distribution sections. Use the provided SBC context if relevant, otherwise generate based on standard educational practice for the subject and book level.
 
@@ -629,7 +628,7 @@ ${context}
 
 **Table of Specification Request Details:**
 *   Subject: ${subject}
-*   Book / Level: ${book}
+*   Subject Level: Based on SBC curriculum standards
 *   Assessment Title: ${assessmentTitle}
 *   Topics Instruction: ${topicsInstruction}
 *   Desired Weighting (Approximate): Objective Questions ${objWeight}%, Subjective Questions ${subjWeight}%
@@ -637,7 +636,7 @@ ${context}
 **Required Output Structure:**
 
 **TABLE OF SPECIFICATION FOR ${subject.toUpperCase()}**
-${book}, ${assessmentTitle}
+${assessmentTitle}
 
 **PAPER 1: MULTIPLE CHOICE QUESTIONS (Suggest total marks, e.g., 40 marks)**
 *(Create a Markdown table with columns: Week/Topic Area, DOK Level 1 (Recall), DOK Level 2 (Skills/Concepts), DOK Level 3 (Strategic Thinking), DOK Level 4 (Extended Thinking), Total Qns per Topic. Distribute a reasonable number of multiple-choice questions (e.g., 30-40 total) across the relevant topics/weeks for ${book}. Focus DoK 1-3...)*

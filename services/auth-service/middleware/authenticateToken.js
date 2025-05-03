@@ -1,5 +1,7 @@
 // services/auth-service/middleware/authenticateToken.js
 const jwt = require('jsonwebtoken');
+const config = require('../config');
+const logger = require('../logger');
 
 function authenticateToken(req, res, next) {
     // Get token from the Authorization header (e.g., "Bearer TOKEN")
@@ -12,20 +14,32 @@ function authenticateToken(req, res, next) {
     }
 
     // Verify the token
-    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    jwt.verify(token, config.jwt.secret, (err, user) => {
         if (err) {
             // Token is invalid (expired, wrong signature, etc.)
-            console.error("JWT Verification Error:", err.message); // Log the specific error
+            logger.warn("JWT Verification Error:", {
+                userId: user?.userId || 'unknown',
+                error: err.message,
+                errorType: err.name
+            });
+            
             if (err.name === 'TokenExpiredError') {
                  return res.status(403).json({ error: 'Forbidden: Access token has expired.' });
+            } else if (err.name === 'JsonWebTokenError') {
+                 return res.status(403).json({ error: 'Forbidden: Invalid access token.' });
+            } else {
+                 return res.status(403).json({ error: 'Forbidden: Token verification failed.' });
             }
-             return res.status(403).json({ error: 'Forbidden: Invalid access token.' });
         }
 
         // Token is valid, attach the payload to the request object
         // The payload contains { userId, email, role } - whatever we put in it during login
         req.user = user;
-        console.log("Token verified for user:", user.userId, "Role:", user.role); // Log successful verification
+        logger.debug("Token verified successfully", {
+            userId: user.userId,
+            role: user.role,
+            ip: req.ip
+        });
 
         // Proceed to the next middleware or the route handler
         next();

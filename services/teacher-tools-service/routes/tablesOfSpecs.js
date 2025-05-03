@@ -15,7 +15,7 @@ router.post('/', checkUsageLimit(usageLimitService.SERVICES.TABLE_OF_SPECIFICATI
     // --- Log Received Body ---
     console.log("[TeacherTools][POST /tos] Received Body:", req.body);
 
-    if (!userId || !subject || !book || !assessmentTitle || !tosContent) {
+    if (!userId || !subject || !assessmentTitle || !tosContent) {
          console.error("[TeacherTools][POST /tos] Validation Failed: Missing required fields.");
          return res.status(400).json({ error: 'Missing required fields for saving ToS.' });
     }
@@ -35,7 +35,7 @@ router.post('/', checkUsageLimit(usageLimitService.SERVICES.TABLE_OF_SPECIFICATI
             userId,
             title || `ToS: ${assessmentTitle.substring(0,30)}...`,
             subject,
-            book,
+            null, // book field is now optional
             assessmentTitle,
             topicsArray, // Pass the processed array
             objWeight, // Pass parsed or null

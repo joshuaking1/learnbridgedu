@@ -4,11 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
 
-// Create a database connection
+// Supabase database configuration
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    // Add SSL configuration if required for your database connection
-    // ssl: { rejectUnauthorized: false } // Example for Supabase
+    ssl: { rejectUnauthorized: false } // Required for Supabase
 });
 
 // Function to run a migration file
@@ -32,46 +31,33 @@ async function runMigration(filePath) {
 
 // Main function to run all migrations
 async function runAllMigrations() {
-    const migrationsDir = path.join(__dirname, 'migrations');
-
+    const client = await pool.connect();
     try {
-        // Ensure migrations directory exists
-        if (!fs.existsSync(migrationsDir)) {
-            console.log('Migrations directory does not exist. No migrations to run.');
-            return;
-        }
+        await client.query('BEGIN');
 
-        // Get all SQL files in the migrations directory
+        // Read and execute each migration file
+        const migrationsDir = path.join(__dirname, 'migrations');
         const files = fs.readdirSync(migrationsDir)
             .filter(file => file.endsWith('.sql'))
-            .sort() // Ensure migrations run in a consistent order (alphabetical)
-            .map(file => path.join(migrationsDir, file));
+            .sort();
 
-        if (files.length === 0) {
-            console.log('No migration files found.');
-            return;
-        }
-
-        console.log(`Found ${files.length} migration files`);
-
-        // Run each migration file sequentially
         for (const file of files) {
-            const success = await runMigration(file);
-            if (!success) {
-                console.error(`Migration ${path.basename(file)} failed. Stopping.`);
-                process.exit(1); // Exit with error code
-            }
+            console.log(`Running migration: ${file}`);
+            const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+            await client.query(sql);
         }
 
+        await client.query('COMMIT');
         console.log('All migrations completed successfully');
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error('Error running migrations:', error);
-        process.exit(1); // Exit with error code
+        throw error;
     } finally {
-        await pool.end(); // Close the database connection
-        console.log('Database connection closed.');
+        client.release();
+        pool.end();
     }
 }
 
 // Execute the migration runner
-runAllMigrations();
+runAllMigrations().catch(console.error);

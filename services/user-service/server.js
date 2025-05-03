@@ -8,7 +8,6 @@ const authenticateToken = require('./middleware/authenticateToken');
 const authorizeRole = require('./middleware/authorizeRole'); // <-- Import authorizeRole
 const requestLogger = require('morgan'); // Use morgan for logging
 const profileRoutes = require('./routes/profile'); // Import profile routes
-const profileImageUrlRoutes = require('./routes/profile-image-url'); // Import profile image URL routes
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -43,9 +42,6 @@ app.get('/api/users/health', async (req, res) => {
 
 // Mount profile routes
 app.use('/api/users/profile', profileRoutes);
-
-// Mount profile image URL routes
-app.use('/api/users/profile/image-url', profileImageUrlRoutes);
 
 // GET Current Logged-in User's Profile (Any authenticated user)
 app.get('/api/users/me', authenticateToken, async (req, res) => {
@@ -327,6 +323,392 @@ app.put('/api/users/:id/role', authenticateToken, authorizeRole(['admin']), asyn
         res.status(500).json({ error: 'Internal Server Error updating user role.' });
     }
 });
+
+// GET Admin Statistics (Requires 'admin' role)
+app.get('/api/admin/stats', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    console.log(`[User Service] /api/admin/stats requested by ADMIN user: ${req.user.userId}`);
+
+    try {
+        // Get total users and active users
+        const usersQuery = `
+            SELECT 
+                COUNT(*) as total_users,
+                COUNT(CASE WHEN s.is_online = true THEN 1 END) as active_users
+            FROM users u
+            LEFT JOIN user_sessions s ON u.id = s.user_id
+        `;
+        const usersResult = await db.query(usersQuery);
+
+        // Get total documents
+        const documentsQuery = `
+            SELECT COUNT(*) as total_documents
+            FROM documents
+        `;
+        const documentsResult = await db.query(documentsQuery);
+
+        // Get total quizzes
+        const quizzesQuery = `
+            SELECT COUNT(*) as total_quizzes
+            FROM quizzes
+        `;
+        const quizzesResult = await db.query(quizzesQuery);
+
+        // Get recent activity
+        const activityQuery = `
+            SELECT 
+                'user' as type,
+                CONCAT(u.first_name, ' ', u.surname, ' created an account') as description,
+                u.created_at as timestamp
+            FROM users u
+            WHERE u.created_at >= NOW() - INTERVAL '7 days'
+            UNION ALL
+            SELECT 
+                'document' as type,
+                CONCAT('New document uploaded: ', d.title) as description,
+                d.created_at as timestamp
+            FROM documents d
+            WHERE d.created_at >= NOW() - INTERVAL '7 days'
+            UNION ALL
+            SELECT 
+                'quiz' as type,
+                CONCAT('New quiz created: ', q.title) as description,
+                q.created_at as timestamp
+            FROM quizzes q
+            WHERE q.created_at >= NOW() - INTERVAL '7 days'
+            ORDER BY timestamp DESC
+            LIMIT 10
+        `;
+        const activityResult = await db.query(activityQuery);
+
+        // Check system health (simplified example)
+        const systemHealth = 'healthy'; // In a real system, this would check various metrics
+
+        res.status(200).json({
+            totalUsers: parseInt(usersResult.rows[0].total_users),
+            activeUsers: parseInt(usersResult.rows[0].active_users),
+            totalDocuments: parseInt(documentsResult.rows[0].total_documents),
+            totalQuizzes: parseInt(quizzesResult.rows[0].total_quizzes),
+            systemHealth,
+            recentActivity: activityResult.rows
+        });
+    } catch (error) {
+        console.error('[User Service] Error fetching admin statistics:', error);
+        res.status(500).json({ error: 'Failed to fetch admin statistics' });
+    }
+});
+
+// GET Admin Analytics (Requires 'admin' role)
+app.get('/api/admin/analytics', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    console.log(`[User Service] /api/admin/analytics requested by ADMIN user: ${req.user.userId}`);
+
+    const { timeRange = '30d' } = req.query;
+    let interval;
+    switch (timeRange) {
+        case '7d':
+            interval = '7 days';
+            break;
+        case '30d':
+            interval = '30 days';
+            break;
+        case '90d':
+            interval = '90 days';
+            break;
+        default:
+            interval = '30 days';
+    }
+
+    try {
+        // Get user engagement metrics
+        const userEngagementQuery = `
+            WITH daily_active AS (
+                SELECT COUNT(DISTINCT user_id) as daily_active_users
+                FROM user_sessions
+                WHERE last_activity >= NOW() - INTERVAL '1 day'
+                AND is_online = true
+            ),
+            weekly_active AS (
+                SELECT COUNT(DISTINCT user_id) as weekly_active_users
+                FROM user_sessions
+                WHERE last_activity >= NOW() - INTERVAL '7 days'
+                AND is_online = true
+            ),
+            monthly_active AS (
+                SELECT COUNT(DISTINCT user_id) as monthly_active_users
+                FROM user_sessions
+                WHERE last_activity >= NOW() - INTERVAL '30 days'
+                AND is_online = true
+            ),
+            session_stats AS (
+                SELECT 
+                    COUNT(*) as total_sessions,
+                    AVG(EXTRACT(EPOCH FROM (session_end - session_start))) as avg_duration_seconds
+                FROM user_sessions
+                WHERE session_start >= NOW() - INTERVAL '${interval}'
+            )
+            SELECT 
+                da.daily_active_users,
+                wa.weekly_active_users,
+                ma.monthly_active_users,
+                ss.total_sessions,
+                ss.avg_duration_seconds
+            FROM daily_active da
+            CROSS JOIN weekly_active wa
+            CROSS JOIN monthly_active ma
+            CROSS JOIN session_stats ss
+        `;
+        const userEngagementResult = await db.query(userEngagementQuery);
+
+        // Get content engagement metrics
+        const contentEngagementQuery = `
+            WITH quiz_stats AS (
+                SELECT 
+                    COUNT(*) as total_quizzes_taken,
+                    AVG(score) as average_score
+                FROM quiz_attempts
+                WHERE created_at >= NOW() - INTERVAL '${interval}'
+            ),
+            document_stats AS (
+                SELECT 
+                    COUNT(*) as total_views,
+                    title as most_popular_document
+                FROM document_views
+                WHERE viewed_at >= NOW() - INTERVAL '${interval}'
+                GROUP BY title
+                ORDER BY COUNT(*) DESC
+                LIMIT 1
+            )
+            SELECT 
+                qs.total_quizzes_taken,
+                qs.average_score,
+                ds.total_views,
+                ds.most_popular_document
+            FROM quiz_stats qs
+            CROSS JOIN document_stats ds
+        `;
+        const contentEngagementResult = await db.query(contentEngagementQuery);
+
+        // Get time series data
+        const timeSeriesQuery = `
+            WITH RECURSIVE date_series AS (
+                SELECT 
+                    DATE_TRUNC('day', NOW() - INTERVAL '${interval}') as date
+                UNION ALL
+                SELECT date + INTERVAL '1 day'
+                FROM date_series
+                WHERE date < NOW()
+            ),
+            daily_stats AS (
+                SELECT 
+                    ds.date,
+                    COUNT(DISTINCT us.user_id) as active_users,
+                    COUNT(DISTINCT CASE WHEN u.created_at >= ds.date AND u.created_at < ds.date + INTERVAL '1 day' THEN u.id END) as new_users,
+                    COUNT(DISTINCT qa.id) as quizzes_taken
+                FROM date_series ds
+                LEFT JOIN user_sessions us ON us.last_activity >= ds.date AND us.last_activity < ds.date + INTERVAL '1 day'
+                LEFT JOIN users u ON u.created_at >= ds.date AND u.created_at < ds.date + INTERVAL '1 day'
+                LEFT JOIN quiz_attempts qa ON qa.created_at >= ds.date AND qa.created_at < ds.date + INTERVAL '1 day'
+                GROUP BY ds.date
+                ORDER BY ds.date
+            )
+            SELECT 
+                date,
+                active_users,
+                new_users,
+                quizzes_taken
+            FROM daily_stats
+        `;
+        const timeSeriesResult = await db.query(timeSeriesQuery);
+
+        res.status(200).json({
+            userEngagement: {
+                dailyActiveUsers: parseInt(userEngagementResult.rows[0].daily_active_users),
+                weeklyActiveUsers: parseInt(userEngagementResult.rows[0].weekly_active_users),
+                monthlyActiveUsers: parseInt(userEngagementResult.rows[0].monthly_active_users),
+                averageSessionDuration: formatDuration(parseInt(userEngagementResult.rows[0].avg_duration_seconds)),
+                totalSessions: parseInt(userEngagementResult.rows[0].total_sessions)
+            },
+            contentEngagement: {
+                totalQuizzesTaken: parseInt(contentEngagementResult.rows[0].total_quizzes_taken),
+                averageQuizScore: parseFloat(contentEngagementResult.rows[0].average_score) || 0,
+                totalDocumentsViewed: parseInt(contentEngagementResult.rows[0].total_views) || 0,
+                mostPopularDocument: contentEngagementResult.rows[0].most_popular_document || 'N/A'
+            },
+            timeSeriesData: timeSeriesResult.rows.map(row => ({
+                date: row.date.toISOString().split('T')[0],
+                activeUsers: parseInt(row.active_users),
+                newUsers: parseInt(row.new_users),
+                quizzesTaken: parseInt(row.quizzes_taken)
+            }))
+        });
+    } catch (error) {
+        console.error('[User Service] Error fetching admin analytics:', error);
+        res.status(500).json({ error: 'Failed to fetch admin analytics' });
+    }
+});
+
+// GET System Settings (Requires 'admin' role)
+app.get('/api/admin/settings', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    console.log(`[User Service] /api/admin/settings requested by ADMIN user: ${req.user.userId}`);
+
+    try {
+        // Get current settings from database
+        const settingsQuery = `
+            SELECT 
+                site_name,
+                site_description,
+                maintenance_mode,
+                registration_enabled,
+                email_notifications,
+                push_notifications,
+                notification_frequency,
+                password_min_length,
+                password_require_uppercase,
+                password_require_numbers,
+                password_require_special_chars,
+                session_timeout,
+                two_factor_auth
+            FROM system_settings
+            WHERE id = 1
+        `;
+        const settingsResult = await db.query(settingsQuery);
+
+        if (settingsResult.rows.length === 0) {
+            // Return default settings if none exist
+            res.status(200).json({
+                general: {
+                    siteName: 'LearnBridge',
+                    siteDescription: 'Educational Platform',
+                    maintenanceMode: false,
+                    registrationEnabled: true
+                },
+                notifications: {
+                    emailNotifications: true,
+                    pushNotifications: true,
+                    notificationFrequency: 'instant'
+                },
+                security: {
+                    passwordPolicy: {
+                        minLength: 8,
+                        requireUppercase: true,
+                        requireNumbers: true,
+                        requireSpecialChars: true
+                    },
+                    sessionTimeout: 30,
+                    twoFactorAuth: false
+                }
+            });
+            return;
+        }
+
+        const settings = settingsResult.rows[0];
+        res.status(200).json({
+            general: {
+                siteName: settings.site_name,
+                siteDescription: settings.site_description,
+                maintenanceMode: settings.maintenance_mode,
+                registrationEnabled: settings.registration_enabled
+            },
+            notifications: {
+                emailNotifications: settings.email_notifications,
+                pushNotifications: settings.push_notifications,
+                notificationFrequency: settings.notification_frequency
+            },
+            security: {
+                passwordPolicy: {
+                    minLength: settings.password_min_length,
+                    requireUppercase: settings.password_require_uppercase,
+                    requireNumbers: settings.password_require_numbers,
+                    requireSpecialChars: settings.password_require_special_chars
+                },
+                sessionTimeout: settings.session_timeout,
+                twoFactorAuth: settings.two_factor_auth
+            }
+        });
+    } catch (error) {
+        console.error('[User Service] Error fetching system settings:', error);
+        res.status(500).json({ error: 'Failed to fetch system settings' });
+    }
+});
+
+// PUT System Settings (Requires 'admin' role)
+app.put('/api/admin/settings', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    console.log(`[User Service] /api/admin/settings update requested by ADMIN user: ${req.user.userId}`);
+
+    try {
+        const {
+            general,
+            notifications,
+            security
+        } = req.body;
+
+        // Update settings in database
+        const updateQuery = `
+            INSERT INTO system_settings (
+                id,
+                site_name,
+                site_description,
+                maintenance_mode,
+                registration_enabled,
+                email_notifications,
+                push_notifications,
+                notification_frequency,
+                password_min_length,
+                password_require_uppercase,
+                password_require_numbers,
+                password_require_special_chars,
+                session_timeout,
+                two_factor_auth
+            )
+            VALUES (
+                1,
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+            )
+            ON CONFLICT (id) DO UPDATE SET
+                site_name = EXCLUDED.site_name,
+                site_description = EXCLUDED.site_description,
+                maintenance_mode = EXCLUDED.maintenance_mode,
+                registration_enabled = EXCLUDED.registration_enabled,
+                email_notifications = EXCLUDED.email_notifications,
+                push_notifications = EXCLUDED.push_notifications,
+                notification_frequency = EXCLUDED.notification_frequency,
+                password_min_length = EXCLUDED.password_min_length,
+                password_require_uppercase = EXCLUDED.password_require_uppercase,
+                password_require_numbers = EXCLUDED.password_require_numbers,
+                password_require_special_chars = EXCLUDED.password_require_special_chars,
+                session_timeout = EXCLUDED.session_timeout,
+                two_factor_auth = EXCLUDED.two_factor_auth
+        `;
+
+        await db.query(updateQuery, [
+            general.siteName,
+            general.siteDescription,
+            general.maintenanceMode,
+            general.registrationEnabled,
+            notifications.emailNotifications,
+            notifications.pushNotifications,
+            notifications.notificationFrequency,
+            security.passwordPolicy.minLength,
+            security.passwordPolicy.requireUppercase,
+            security.passwordPolicy.requireNumbers,
+            security.passwordPolicy.requireSpecialChars,
+            security.sessionTimeout,
+            security.twoFactorAuth
+        ]);
+
+        res.status(200).json({ message: 'Settings updated successfully' });
+    } catch (error) {
+        console.error('[User Service] Error updating system settings:', error);
+        res.status(500).json({ error: 'Failed to update system settings' });
+    }
+});
+
+// Helper function to format duration
+function formatDuration(seconds) {
+    if (!seconds) return '0m';
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds}s`;
+}
 
 // TODO: Add routes for PUT /:id (update profile - self or admin), DELETE /:id (admin only)
 // These routes will also need the `authenticateToken` middleware and potentially `authorizeRole`.
