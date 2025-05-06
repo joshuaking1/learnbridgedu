@@ -21,20 +21,71 @@ app.use(express.urlencoded({ extended: true }));
 
 // --- Public Routes ---
 
+// Enhanced health check with warmup status
+let isWarmedUp = false;
+let lastWarmupTime = null;
+
 // Health Check
 app.get('/api/users/health', async (req, res) => {
     console.log("Health check requested. Testing DB connection...");
-    let isConnected = false;
     try {
-         isConnected = await db.testConnection();
-    } catch (error) {
-         console.error("Error during health check DB test:", error);
-    }
+        // Test DB connection
+        const isConnected = await db.testConnection();
+        
+        // Check core service readiness
+        const serviceReady = isConnected && isWarmedUp;
+        
+        // Auto-warmup on health check
+        if (!isWarmedUp || (lastWarmupTime && Date.now() - lastWarmupTime > 5 * 60 * 1000)) {
+            // Warm up connection pool and cache
+            await db.query('SELECT COUNT(*) FROM users LIMIT 1');
+            await db.query('SELECT COUNT(*) FROM user_sessions LIMIT 1');
+            isWarmedUp = true;
+            lastWarmupTime = Date.now();
+        }
 
-    if (isConnected) {
-        res.status(200).json({ status: 'User Service is Up!', db_status: 'Connected' });
-    } else {
-        res.status(500).json({ status: 'User Service is Up!', db_status: 'Error Connecting' });
+        res.status(200).json({
+            status: 'User Service is Up!',
+            ready: serviceReady,
+            warmedUp: isWarmedUp,
+            lastWarmup: lastWarmupTime,
+            checks: {
+                database: isConnected,
+                cache: isWarmedUp
+            }
+        });
+    } catch (error) {
+        console.error("Error during health check:", error);
+        res.status(503).json({
+            status: 'User Service is Up but not ready!',
+            ready: false,
+            error: error.message
+        });
+    }
+});
+
+// Warmup endpoint
+app.post('/api/users/warmup', async (req, res) => {
+    try {
+        // Warm up connection pool and frequently accessed tables
+        await db.query('SELECT COUNT(*) FROM users LIMIT 1');
+        await db.query('SELECT COUNT(*) FROM user_sessions LIMIT 1');
+        
+        // Update warmup status
+        isWarmedUp = true;
+        lastWarmupTime = Date.now();
+
+        res.status(200).json({
+            status: 'Warmup successful',
+            warmedUp: true,
+            lastWarmup: lastWarmupTime
+        });
+    } catch (error) {
+        console.error('Warmup failed:', error);
+        res.status(500).json({
+            status: 'Warmup failed',
+            error: error.message
+        });
     }
 });
 

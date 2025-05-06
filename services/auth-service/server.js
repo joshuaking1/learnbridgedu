@@ -16,18 +16,25 @@ const config = require("./config"); // Import config
 const accountLockoutService = require("./services/accountLockoutService"); // Import account lockout service
 const twoFactorService = require("./services/twoFactorService"); // Import 2FA service
 const twoFactorRoutes = require("./routes/twoFactorRoutes"); // Import 2FA routes
+const loginHistoryRoutes = require("./routes/loginHistoryRoutes"); // Import login history routes
 
 const app = express();
 const PORT = config.port; // Use port from config
 
 // Middleware
 const corsOptions = {
-  origin: ['http://localhost:3000', 'http://localhost:3001', process.env.FRONTEND_URL].filter(Boolean),
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  origin: [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "https://app.learnbridgedu.com",
+    "https://learnbridgedu.com",
+    process.env.FRONTEND_URL,
+  ].filter(Boolean),
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
 };
-logger.info('CORS configured with origins:', corsOptions.origin);
+logger.info("CORS configured with origins:", corsOptions.origin);
 app.use(cors(corsOptions));
 
 app.use(helmet());
@@ -53,12 +60,78 @@ const registerLimiter = rateLimit({
 });
 
 // Simple Route for Testing
-app.get("/api/auth/health", (req, res) => {
-  res.status(200).json({ status: "Auth Service is Up!" });
+// Enhanced health check with warmup status
+let isWarmedUp = false;
+let lastWarmupTime = null;
+
+app.get("/api/auth/health", async (req, res) => {
+  try {
+    // Test DB connection
+    const dbConnected = await db.query("SELECT 1");
+
+    // Check core service readiness
+    const serviceReady = dbConnected && isWarmedUp;
+
+    // Auto-warmup on health check
+    if (
+      !isWarmedUp ||
+      (lastWarmupTime && Date.now() - lastWarmupTime > 5 * 60 * 1000)
+    ) {
+      // Warm up connection pool and cache
+      await db.query("SELECT COUNT(*) FROM users LIMIT 1");
+      isWarmedUp = true;
+      lastWarmupTime = Date.now();
+    }
+
+    res.status(200).json({
+      status: "Auth Service is Up!",
+      ready: serviceReady,
+      warmedUp: isWarmedUp,
+      lastWarmup: lastWarmupTime,
+      checks: {
+        database: !!dbConnected,
+        cache: isWarmedUp,
+      },
+    });
+  } catch (error) {
+    logger.error("Health check failed:", error);
+    res.status(503).json({
+      status: "Auth Service is Up but not ready!",
+      ready: false,
+      error: error.message,
+    });
+  }
+});
+
+// Warmup endpoint
+app.post("/api/auth/warmup", async (req, res) => {
+  try {
+    // Warm up connection pool
+    await db.query("SELECT COUNT(*) FROM users LIMIT 1");
+
+    // Update warmup status
+    isWarmedUp = true;
+    lastWarmupTime = Date.now();
+
+    res.status(200).json({
+      status: "Warmup successful",
+      warmedUp: true,
+      lastWarmup: lastWarmupTime,
+    });
+  } catch (error) {
+    logger.error("Warmup failed:", error);
+    res.status(500).json({
+      status: "Warmup failed",
+      error: error.message,
+    });
+  }
 });
 
 // Mount 2FA routes
 app.use("/api/auth/2fa", twoFactorRoutes);
+
+// Mount login history routes
+app.use("/api/auth/login-history", loginHistoryRoutes);
 
 // --- Auth Routes --- Apply rate limiters
 
@@ -1017,15 +1090,15 @@ app.post(
 // --- Error Handling Middleware ---
 app.use((err, req, res, next) => {
   logger.error(`[AuthService Error] ${req.method} ${req.path}:`, err);
-  res.status(500).json({ error: 'Internal Server Error' });
+  res.status(500).json({ error: "Internal Server Error" });
 });
 
 // --- 404 Handler ---
 app.use((req, res, next) => {
-  res.status(404).json({ error: 'Not Found' });
+  res.status(404).json({ error: "Not Found" });
 });
 
 // Start the server
 app.listen(PORT, () => {
-    logger.info(`Auth Service running on port ${PORT}`);
+  logger.info(`Auth Service running on port ${PORT}`);
 });

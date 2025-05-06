@@ -28,20 +28,76 @@ const progressRouter = require('./routes/progress');
 const recommendationsRouter = require('./routes/recommendations');
 const usageLimitsRouter = require('./routes/usageLimits');
 
-// --- Health Check ---
+// --- Health Check with Warmup ---
+let isWarmedUp = false;
+let lastWarmupTime = null;
+
 app.get('/api/learning-paths/health', async (req, res) => {
     console.log("Health check requested. Testing DB connection...");
-    let isConnected = false;
     try {
-        isConnected = await db.testConnection();
-    } catch (error) {
-        console.error("Error during health check DB test:", error);
-    }
+        // Test DB connection
+        const isConnected = await db.testConnection();
+        
+        // Check core service readiness
+        const serviceReady = isConnected && isWarmedUp;
+        
+        // Auto-warmup on health check
+        if (!isWarmedUp || (lastWarmupTime && Date.now() - lastWarmupTime > 5 * 60 * 1000)) {
+            // Warm up connection pool and frequently accessed tables
+            await Promise.all([
+                db.query('SELECT COUNT(*) FROM learning_paths LIMIT 1'),
+                db.query('SELECT COUNT(*) FROM skills LIMIT 1'),
+                db.query('SELECT COUNT(*) FROM achievements LIMIT 1')
+            ]);
+            isWarmedUp = true;
+            lastWarmupTime = Date.now();
+        }
 
-    if (isConnected) {
-        res.status(200).json({ status: 'Learning Path Service is Up!', db_status: 'Connected' });
-    } else {
-        res.status(500).json({ status: 'Learning Path Service is Up!', db_status: 'Error Connecting' });
+        res.status(200).json({
+            status: 'Learning Path Service is Up!',
+            ready: serviceReady,
+            warmedUp: isWarmedUp,
+            lastWarmup: lastWarmupTime,
+            checks: {
+                database: isConnected,
+                cache: isWarmedUp
+            }
+        });
+    } catch (error) {
+        console.error("Error during health check:", error);
+        res.status(503).json({
+            status: 'Learning Path Service is Up but not ready!',
+            ready: false,
+            error: error.message
+        });
+    }
+});
+
+// Warmup endpoint
+app.post('/api/learning-paths/warmup', async (req, res) => {
+    try {
+        // Warm up connection pool and frequently accessed tables
+        await Promise.all([
+            db.query('SELECT COUNT(*) FROM learning_paths LIMIT 1'),
+            db.query('SELECT COUNT(*) FROM skills LIMIT 1'),
+            db.query('SELECT COUNT(*) FROM achievements LIMIT 1')
+        ]);
+        
+        // Update warmup status
+        isWarmedUp = true;
+        lastWarmupTime = Date.now();
+
+        res.status(200).json({
+            status: 'Warmup successful',
+            warmedUp: true,
+            lastWarmup: lastWarmupTime
+        });
+    } catch (error) {
+        console.error('Warmup failed:', error);
+        res.status(500).json({
+            status: 'Warmup failed',
+            error: error.message
+        });
     }
 });
 
