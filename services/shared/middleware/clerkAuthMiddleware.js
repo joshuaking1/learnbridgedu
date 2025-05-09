@@ -23,9 +23,16 @@ try {
     console.error('Detected Render.com environment. Exiting process to prevent restart loop.');
     // Use setTimeout to ensure the error messages are logged before exiting
     setTimeout(() => process.exit(0), 1000);
+    // Return a mock implementation that will cause graceful failures rather than crashes
+    return class MockClerk {
+      constructor() {
+        console.warn('Using non-functional Clerk placeholder');
+      }
+    };
+  } else {
+    // For local development, we'll throw an error
+    throw new Error('Clerk SDK not found. Installation required.');
   }
-  // For local development, we'll throw an error
-  throw new Error('Clerk SDK not found. Installation required.');
 }
 
 // Initialize Clerk client with proper error handling
