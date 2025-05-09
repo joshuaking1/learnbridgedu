@@ -6,34 +6,8 @@ try {
   console.warn('dotenv module not found, environment variables must be set manually');
 }
 
-// Try to load Clerk SDK
-let Clerk;
-try {
-  const clerkModule = require("@clerk/clerk-sdk-node");
-  Clerk = clerkModule.Clerk;
-  console.log('Clerk SDK loaded successfully');
-} catch (error) {
-  console.error('FATAL ERROR: Clerk SDK not found. Please install @clerk/clerk-sdk-node');
-  console.error('Installation instructions: npm install @clerk/clerk-sdk-node --save');
-  console.error('This is required for authentication to work properly');
-  
-  // We're exiting with code 0 instead of error code to prevent Render from restarting in a loop
-  // This will allow us to see the error message in the logs
-  if (process.env.RENDER) {
-    console.error('Detected Render.com environment. Exiting process to prevent restart loop.');
-    // Use setTimeout to ensure the error messages are logged before exiting
-    setTimeout(() => process.exit(0), 1000);
-    // Return a mock implementation that will cause graceful failures rather than crashes
-    return class MockClerk {
-      constructor() {
-        console.warn('Using non-functional Clerk placeholder');
-      }
-    };
-  } else {
-    // For local development, we'll throw an error
-    throw new Error('Clerk SDK not found. Installation required.');
-  }
-}
+// Load Clerk SDK - critical for authentication, must be present
+const { Clerk } = require("@clerk/clerk-sdk-node");
 
 // Initialize Clerk client with proper error handling
 let clerk;
