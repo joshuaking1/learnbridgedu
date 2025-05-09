@@ -1,5 +1,10 @@
 // services/shared/middleware/clerkAuthMiddleware.js
-require('dotenv').config();
+// Try to load dotenv if available, but continue if not
+try {
+  require('dotenv').config();
+} catch (error) {
+  console.warn('dotenv module not found, environment variables must be set manually');
+}
 const { Clerk } = require("@clerk/clerk-sdk-node");
 
 // Initialize Clerk client with proper error handling
