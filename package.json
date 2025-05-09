@@ -12,14 +12,16 @@
     "dev:backend": "cd backend && npm run dev",
     "build": "npm run build:frontend && npm run build:backend",
     "build:frontend": "cd frontend && npm run build",
-    "build:backend": "cd backend && npm run build"
+    "build:backend": "cd backend && npm run build",
+    "postinstall": "npm run install-services",
+    "install-services": "node scripts/install-service-dependencies.js"
   },
   "devDependencies": {
-    "@clerk/clerk-sdk-node": "^4.13.23",
     "@playwright/test": "^1.52.0",
     "concurrently": "^8.2.2"
   },
   "dependencies": {
+    "@clerk/clerk-sdk-node": "^4.13.23",
     "@clerk/themes": "^2.2.42",
     "framer-motion": "^12.10.0",
     "react-markdown": "^10.1.0"
