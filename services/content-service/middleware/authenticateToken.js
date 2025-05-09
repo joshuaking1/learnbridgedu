@@ -1,69 +1,8 @@
 // services/content-service/middleware/authenticateToken.js
-import { Clerk } from "@clerk/clerk-sdk-node";
-import logger from "../../shared/logger";
+import { clerkAuthMiddleware } from "../../shared/middleware/clerkAuthMiddleware.js.mjs";
+import logger from "../utils/logger";
 
-// Initialize Clerk client
-const clerk = new Clerk({
-  secretKey: process.env.CLERK_SECRET_KEY,
-});
-
-/**
- * Middleware to authenticate requests using Clerk tokens
- */
-function authenticateToken(req, res, next) {
-  try {
-    // Get the auth header
-    const authHeader = req.headers["authorization"];
-    const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN format
-
-    if (!token) {
-      logger.warn("[ContentService] Missing authorization token");
-      return res.status(401).json({ error: "Unauthorized: No token provided" });
-    }
-
-    // Verify the token with Clerk
-    clerk
-      .verifyToken(token)
-      .then((sessionClaims) => {
-        if (!sessionClaims || !sessionClaims.sub) {
-          logger.warn("[ContentService] Invalid token: Failed verification");
-          return res.status(401).json({ error: "Unauthorized: Invalid token" });
-        }
-
-        // Get the user from Clerk
-        return clerk.users.getUser(sessionClaims.sub).then((user) => {
-          if (!user) {
-            logger.warn(
-              `[ContentService] User not found for ID: ${sessionClaims.sub}`
-            );
-            return res
-              .status(401)
-              .json({ error: "Unauthorized: User not found" });
-          }
-
-          // Add user info to request object
-          req.user = {
-            userId: user.id,
-            email: user.emailAddresses[0]?.emailAddress,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            role: user.publicMetadata?.role || "student",
-          };
-
-          // Continue to the next middleware or route handler
-          next();
-        });
-      })
-      .catch((error) => {
-        logger.error("[ContentService] Error verifying token:", error);
-        return res.status(401).json({ error: "Unauthorized: Invalid token" });
-      });
-  } catch (error) {
-    logger.error("[ContentService] Error in auth middleware:", error);
-    return res
-      .status(500)
-      .json({ error: "Internal server error during authentication" });
-  }
-}
+// Create an instance of the middleware with the content-service logger
+const authenticateToken = clerkAuthMiddleware({ logger });
 
 export default authenticateToken;

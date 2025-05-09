@@ -1,10 +1,5 @@
-// services/shared/middleware/clerkAuthMiddleware.js
-const { Clerk } = require("@clerk/clerk-sdk-node");
-
-// Initialize Clerk client
-const clerk = new Clerk({
-  secretKey: process.env.CLERK_SECRET_KEY,
-});
+// services/shared/middleware/clerkAuthMiddleware.js.mjs
+import { Clerk } from '@clerk/clerk-sdk-node';
 
 /**
  * Middleware to authenticate requests using Clerk tokens
@@ -13,8 +8,13 @@ const clerk = new Clerk({
  * @param {Object} options.logger - Logger instance
  * @returns {Function} Express middleware function
  */
-function clerkAuthMiddleware(options = {}) {
+export function clerkAuthMiddleware(options = {}) {
   const { requireRole = null, logger } = options;
+
+  // Initialize Clerk client
+  const clerk = new Clerk({
+    secretKey: process.env.CLERK_SECRET_KEY,
+  });
 
   return async (req, res, next) => {
     try {
@@ -94,23 +94,16 @@ function clerkAuthMiddleware(options = {}) {
 }
 
 // Middleware specifically for teacher role
-function requireTeacher(logger) {
+export function requireTeacher(logger) {
   return clerkAuthMiddleware({ requireRole: "teacher", logger });
 }
 
 // Middleware specifically for student role
-function requireStudent(logger) {
+export function requireStudent(logger) {
   return clerkAuthMiddleware({ requireRole: "student", logger });
 }
 
 // Middleware specifically for admin role
-function requireAdmin(logger) {
+export function requireAdmin(logger) {
   return clerkAuthMiddleware({ requireRole: "admin", logger });
 }
-
-module.exports = {
-  clerkAuthMiddleware,
-  requireTeacher,
-  requireStudent,
-  requireAdmin,
-};
