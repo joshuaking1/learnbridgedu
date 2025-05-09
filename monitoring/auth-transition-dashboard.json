@@ -1,0 +1,235 @@
+{
+  "dashboard": {
+    "title": "Authentication Transition Dashboard",
+    "description": "Monitoring dashboard for the transition from custom auth to Clerk",
+    "refresh": "5m",
+    "panels": [
+      {
+        "title": "Authentication Success Rate",
+        "type": "graph",
+        "datasource": "prometheus",
+        "targets": [
+          {
+            "expr": "sum(rate(auth_login_success_total[5m])) / sum(rate(auth_login_attempts_total[5m])) * 100",
+            "legendFormat": "Success Rate (%)"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "percent",
+            "min": 0,
+            "max": 100
+          }
+        ],
+        "thresholds": [
+          {
+            "value": 95,
+            "colorMode": "critical",
+            "op": "lt",
+            "fill": true,
+            "line": true
+          }
+        ]
+      },
+      {
+        "title": "Login Attempts by Auth Provider",
+        "type": "graph",
+        "datasource": "prometheus",
+        "targets": [
+          {
+            "expr": "sum(rate(auth_login_attempts_total{provider=\"custom\"}[5m]))",
+            "legendFormat": "Custom Auth"
+          },
+          {
+            "expr": "sum(rate(auth_login_attempts_total{provider=\"clerk\"}[5m]))",
+            "legendFormat": "Clerk"
+          }
+        ]
+      },
+      {
+        "title": "Authentication Errors",
+        "type": "graph",
+        "datasource": "prometheus",
+        "targets": [
+          {
+            "expr": "sum(rate(auth_login_error_total{provider=\"custom\"}[5m]))",
+            "legendFormat": "Custom Auth Errors"
+          },
+          {
+            "expr": "sum(rate(auth_login_error_total{provider=\"clerk\"}[5m]))",
+            "legendFormat": "Clerk Errors"
+          }
+        ]
+      },
+      {
+        "title": "User Migration Progress",
+        "type": "gauge",
+        "datasource": "prometheus",
+        "targets": [
+          {
+            "expr": "sum(user_clerk_id_count) / sum(user_total_count) * 100",
+            "legendFormat": "Migration Progress"
+          }
+        ],
+        "options": {
+          "min": 0,
+          "max": 100,
+          "thresholds": [
+            { "color": "red", "value": 0 },
+            { "color": "yellow", "value": 50 },
+            { "color": "green", "value": 90 }
+          ]
+        }
+      },
+      {
+        "title": "API Requests by Auth Type",
+        "type": "graph",
+        "datasource": "prometheus",
+        "targets": [
+          {
+            "expr": "sum(rate(api_requests_total{auth_type=\"custom\"}[5m]))",
+            "legendFormat": "Custom Auth"
+          },
+          {
+            "expr": "sum(rate(api_requests_total{auth_type=\"clerk\"}[5m]))",
+            "legendFormat": "Clerk"
+          }
+        ]
+      },
+      {
+        "title": "Password Reset Requests",
+        "type": "graph",
+        "datasource": "prometheus",
+        "targets": [
+          {
+            "expr": "sum(rate(password_reset_requests_total[5m]))",
+            "legendFormat": "Reset Requests"
+          }
+        ]
+      },
+      {
+        "title": "Auth-Related Support Tickets",
+        "type": "graph",
+        "datasource": "prometheus",
+        "targets": [
+          {
+            "expr": "sum(rate(support_tickets_total{category=\"authentication\"}[1d]))",
+            "legendFormat": "Auth Support Tickets"
+          }
+        ]
+      },
+      {
+        "title": "Migration Failures",
+        "type": "stat",
+        "datasource": "prometheus",
+        "targets": [
+          {
+            "expr": "sum(user_migration_failures_total)",
+            "legendFormat": "Failed Migrations"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        }
+      },
+      {
+        "title": "Active Users by Auth Provider",
+        "type": "pie",
+        "datasource": "prometheus",
+        "targets": [
+          {
+            "expr": "sum(active_users_total{auth_provider=\"custom\"})",
+            "legendFormat": "Custom Auth"
+          },
+          {
+            "expr": "sum(active_users_total{auth_provider=\"clerk\"})",
+            "legendFormat": "Clerk"
+          }
+        ]
+      }
+    ],
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "prometheus",
+          "expr": "changes(deployment_version[1m]) > 0",
+          "titleFormat": "Deployment",
+          "textFormat": "Version {{$labels.version}} deployed"
+        },
+        {
+          "name": "Migration Events",
+          "datasource": "prometheus",
+          "expr": "changes(user_migration_batch_total[1m]) > 0",
+          "titleFormat": "User Migration",
+          "textFormat": "Batch of {{$value}} users migrated"
+        }
+      ]
+    }
+  },
+  "metrics": [
+    {
+      "name": "auth_login_attempts_total",
+      "help": "Total number of login attempts",
+      "type": "counter",
+      "labels": ["provider", "status"]
+    },
+    {
+      "name": "auth_login_success_total",
+      "help": "Total number of successful logins",
+      "type": "counter",
+      "labels": ["provider"]
+    },
+    {
+      "name": "auth_login_error_total",
+      "help": "Total number of login errors",
+      "type": "counter",
+      "labels": ["provider", "error_type"]
+    },
+    {
+      "name": "user_total_count",
+      "help": "Total number of users",
+      "type": "gauge"
+    },
+    {
+      "name": "user_clerk_id_count",
+      "help": "Number of users with Clerk IDs",
+      "type": "gauge"
+    },
+    {
+      "name": "api_requests_total",
+      "help": "Total number of API requests",
+      "type": "counter",
+      "labels": ["auth_type", "endpoint"]
+    },
+    {
+      "name": "password_reset_requests_total",
+      "help": "Total number of password reset requests",
+      "type": "counter"
+    },
+    {
+      "name": "support_tickets_total",
+      "help": "Total number of support tickets",
+      "type": "counter",
+      "labels": ["category"]
+    },
+    {
+      "name": "user_migration_failures_total",
+      "help": "Total number of user migration failures",
+      "type": "counter"
+    },
+    {
+      "name": "active_users_total",
+      "help": "Total number of active users",
+      "type": "gauge",
+      "labels": ["auth_provider"]
+    },
+    {
+      "name": "user_migration_batch_total",
+      "help": "Number of users in a migration batch",
+      "type": "counter"
+    }
+  ]
+}

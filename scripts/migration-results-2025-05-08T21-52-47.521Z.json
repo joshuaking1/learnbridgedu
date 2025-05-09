@@ -1,0 +1,314 @@
+{
+  "total": 51,
+  "success": 0,
+  "failed": 0,
+  "skipped": 51,
+  "details": [
+    {
+      "userId": 17,
+      "email": "sebeow@yahoo.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 18,
+      "email": "darffred@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 19,
+      "email": "mistyben6@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 9,
+      "email": "goj.sal@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 11,
+      "email": "www.nanainno47@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 6,
+      "email": "segujoshua7@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 1,
+      "email": "segujoshua30@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 20,
+      "email": "hughesnaa55@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 21,
+      "email": "micalimoh@yahoo.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 22,
+      "email": "adafiaelizabeth8@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 24,
+      "email": "richardsimpson47@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 27,
+      "email": "test@hmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 29,
+      "email": "mligbidi@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 31,
+      "email": "martinetinos@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 32,
+      "email": "kbaahboateng4@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 34,
+      "email": "dandarko48@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 35,
+      "email": "dezoo86kom@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 36,
+      "email": "elyown81@yahoo.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 37,
+      "email": "sirrich355@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 38,
+      "email": "adjoaadepa11@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 40,
+      "email": "frederickasare18122007@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 7,
+      "email": "sammy11zet@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 8,
+      "email": "evansaduboakye1977@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 10,
+      "email": "Makwase54@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 13,
+      "email": "mdksignal@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 14,
+      "email": "percisdankwah14@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 16,
+      "email": "boafodennis0550@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 41,
+      "email": "mmfgod2000ay@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 42,
+      "email": "trool87@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 43,
+      "email": "johnkojoboateng@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 44,
+      "email": "faajos15@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 46,
+      "email": "yeboahbenedict727@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 47,
+      "email": "papaasammy@gamil.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 28,
+      "email": "asieduacomfort9@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 48,
+      "email": "kkakyemkwaa@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 49,
+      "email": "wiafebernard@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 50,
+      "email": "princessabbey71@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 15,
+      "email": "awukuansahemmanuel@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 51,
+      "email": "dorpegodsway4040@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 58,
+      "email": "stellaattigah2015@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 23,
+      "email": "nipokwasi@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 33,
+      "email": "charttyboat@yahoo.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 39,
+      "email": "woyramid@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 12,
+      "email": "awinpangmohammedissaka@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 62,
+      "email": "abomusa24@yahoo.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 63,
+      "email": "christiankofimensah@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 64,
+      "email": "kwabefmna2020@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 4,
+      "email": "squidgamegh20@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 25,
+      "email": "a.emmanuel28@yahoo.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 45,
+      "email": "zutor.max@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    },
+    {
+      "userId": 65,
+      "email": "gerant.antwi@gmail.com",
+      "status": "skipped",
+      "message": "User already has Clerk ID"
+    }
+  ]
+}

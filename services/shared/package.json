@@ -1,0 +1,11 @@
+{
+  "name": "shared",
+  "version": "1.0.0",
+  "description": "Shared modules for services",
+  "main": "index.js",
+  "scripts": {},
+  "dependencies": {
+    "winston": "^3.10.0",
+    "pg": "^8.11.3"
+  }
+}

@@ -15,6 +15,13 @@
     "build:backend": "cd backend && npm run build"
   },
   "devDependencies": {
+    "@clerk/clerk-sdk-node": "^4.13.23",
+    "@playwright/test": "^1.52.0",
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "@clerk/themes": "^2.2.42",
+    "framer-motion": "^12.10.0",
+    "react-markdown": "^10.1.0"
   }
-} 
+}

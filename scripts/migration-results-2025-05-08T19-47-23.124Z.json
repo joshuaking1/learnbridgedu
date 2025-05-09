@@ -1,0 +1,360 @@
+{
+  "total": 51,
+  "success": 46,
+  "failed": 5,
+  "skipped": 0,
+  "details": [
+    {
+      "userId": 20,
+      "email": "hughesnaa55@gmail.com",
+      "clerkId": "user_2wpLTlSOk5GlJUFRpvG05DLPCSt",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 21,
+      "email": "micalimoh@yahoo.com",
+      "clerkId": "user_2wpLU2Vn6uYS1wEJJ9cf7pjPvnL",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 22,
+      "email": "adafiaelizabeth8@gmail.com",
+      "clerkId": "user_2wpLUBllbpaJO6wFCeh3evdJkZq",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 23,
+      "email": "nipokwasi@gmail.com",
+      "clerkId": "user_2wpLUG00igkTgqCHHJupiN8IwS4",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 24,
+      "email": "richardsimpson47@gmail.com",
+      "clerkId": "user_2wpLUSJTpI1Oa4N6fwDbmwzVaJG",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 25,
+      "email": "a.emmanuel28@yahoo.com",
+      "status": "failed",
+      "message": "Unprocessable Entity"
+    },
+    {
+      "userId": 27,
+      "email": "test@hmail.com",
+      "clerkId": "user_2wpLUjCDCqLrQkOe3f2GvQBidlf",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 29,
+      "email": "mligbidi@gmail.com",
+      "clerkId": "user_2wpLUmdUTj39pGxTbl92fc6370V",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 31,
+      "email": "martinetinos@gmail.com",
+      "clerkId": "user_2wpLUyOplwJ7Cu29o7eDvJq6NtF",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 32,
+      "email": "kbaahboateng4@gmail.com",
+      "clerkId": "user_2wpLV7cIqeWGMov3ewSN0RaemP5",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 33,
+      "email": "charttyboat@yahoo.com",
+      "clerkId": "user_2wpLVbmJ9ekzq4BI3NtOLkrQCLI",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 34,
+      "email": "dandarko48@gmail.com",
+      "clerkId": "user_2wpLVkgaJrjPcpebi8irWiL8sng",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 35,
+      "email": "dezoo86kom@gmail.com",
+      "clerkId": "user_2wpLVmrplROXQIUC2HLNtZdBmca",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 36,
+      "email": "elyown81@yahoo.com",
+      "clerkId": "user_2wpLVzz0uFKCFGkwHrgk0e8GrSd",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 37,
+      "email": "sirrich355@gmail.com",
+      "clerkId": "user_2wpLW6g11FsSbP3ATOQI0MN6Mnm",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 38,
+      "email": "adjoaadepa11@gmail.com",
+      "clerkId": "user_2wpLWA9uAmy7P64kPjyuufbSe9T",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 39,
+      "email": "woyramid@gmail.com",
+      "clerkId": "user_2wpLWGMt8rVqwPEFfR6wQQqecxA",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 40,
+      "email": "frederickasare18122007@gmail.com",
+      "clerkId": "user_2wpLWbZnW6ZriXLQto9V2ZYa4Pq",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 7,
+      "email": "sammy11zet@gmail.com",
+      "clerkId": "user_2wpLWeh1tnh9qZch5jm2sqXyMar",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 6,
+      "email": "segujoshua7@gmail.com",
+      "clerkId": "user_2wpLWrJ0yEwPZm31jtPyK4xXAdx",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 1,
+      "email": "segujoshua30@gmail.com",
+      "clerkId": "user_2wljwdnnuf7JVMk4iQV7BYezemH",
+      "status": "success",
+      "message": "User already exists in Clerk"
+    },
+    {
+      "userId": 8,
+      "email": "evansaduboakye1977@gmail.com",
+      "clerkId": "user_2wpLXIU58NWfcXHznN1bXfzyZ1d",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 9,
+      "email": "goj.sal@gmail.com",
+      "status": "failed",
+      "message": "Unprocessable Entity"
+    },
+    {
+      "userId": 10,
+      "email": "Makwase54@gmail.com",
+      "clerkId": "user_2wpLXbkq3jqnsuqH53i9zmT2lPq",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 11,
+      "email": "www.nanainno47@gmail.com",
+      "status": "failed",
+      "message": "Unprocessable Entity"
+    },
+    {
+      "userId": 12,
+      "email": "awinpangmohammedissaka@gmail.com",
+      "clerkId": "user_2wpLXm2q0GXUPXe1RQ17G4g1WaO",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 13,
+      "email": "mdksignal@gmail.com",
+      "clerkId": "user_2wpLY86pTgy0I5SRfZiCnJfapzT",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 14,
+      "email": "percisdankwah14@gmail.com",
+      "clerkId": "user_2wpLYEJhTkiTNlQRjid5NuUdXvH",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 16,
+      "email": "boafodennis0550@gmail.com",
+      "clerkId": "user_2wpLYJCKKKvxz9Nm4Lk8b7ExfrB",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 17,
+      "email": "sebeow@yahoo.com",
+      "clerkId": "user_2wpLYZ4oyalF03moTJz0Mf4Oy6r",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 18,
+      "email": "darffred@gmail.com",
+      "clerkId": "user_2wpLYzAjulIcDG760D3fGYVnRlh",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 19,
+      "email": "mistyben6@gmail.com",
+      "clerkId": "user_2wpLZ7QitYRxYuFFuQmiMZHAjAH",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 41,
+      "email": "mmfgod2000ay@gmail.com",
+      "clerkId": "user_2wpLZBah9wqXt5ntZiCN01tNz2x",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 42,
+      "email": "trool87@gmail.com",
+      "clerkId": "user_2wpLZMROnFADEt9TWNLqLVvhdwV",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 43,
+      "email": "johnkojoboateng@gmail.com",
+      "clerkId": "user_2wpLZTutDEQ419Ku2YmZH841aBc",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 44,
+      "email": "faajos15@gmail.com",
+      "clerkId": "user_2wpLZdQ6hdpC2jUhD1wVwoOhEJ4",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 45,
+      "email": "zutor.max@gmail.com",
+      "status": "failed",
+      "message": "Unprocessable Entity"
+    },
+    {
+      "userId": 46,
+      "email": "yeboahbenedict727@gmail.com",
+      "clerkId": "user_2wpLZosuahjZ5k7IeRJ09qVVW8Y",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 47,
+      "email": "papaasammy@gamil.com",
+      "clerkId": "user_2wpLZyNsN1Z6KhsBEG05t8StKzq",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 28,
+      "email": "asieduacomfort9@gmail.com",
+      "clerkId": "user_2wpLa7i3Ln5JiCo0D2arWtkqnjd",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 48,
+      "email": "kkakyemkwaa@gmail.com",
+      "clerkId": "user_2wpLabzycbNEx3aeX3V6vAjsu5E",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 49,
+      "email": "wiafebernard@gmail.com",
+      "clerkId": "user_2wpLalZNWnOa1vj1xDGzQ7pkVz7",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 50,
+      "email": "princessabbey71@gmail.com",
+      "clerkId": "user_2wpLaqswUH1j0wsl5mZ2DDbym4p",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 51,
+      "email": "dorpegodsway4040@gmail.com",
+      "clerkId": "user_2wpLazK9OAKXS8RGGZwPva4XuXk",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 58,
+      "email": "stellaattigah2015@gmail.com",
+      "clerkId": "user_2wpLb5OoLZ05v0MIM2Q9pfZvvNQ",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 62,
+      "email": "abomusa24@yahoo.com",
+      "clerkId": "user_2wpLbDTneu0fMpd1W2B3l36vgWA",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 63,
+      "email": "christiankofimensah@gmail.com",
+      "clerkId": "user_2wpLbHtGOzLebjZTJPgPKTohXAQ",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 64,
+      "email": "kwabefmna2020@gmail.com",
+      "clerkId": "user_2wpLbXux4MkCVx7iIHmekJvPFT2",
+      "status": "success",
+      "message": "User created in Clerk"
+    },
+    {
+      "userId": 65,
+      "email": "gerant.antwi@gmail.com",
+      "status": "failed",
+      "message": "Unprocessable Entity"
+    },
+    {
+      "userId": 4,
+      "email": "squidgamegh20@gmail.com",
+      "clerkId": "user_2wp6RgwImUnmt1Tdd8p85fqy9RM",
+      "status": "success",
+      "message": "User already exists in Clerk"
+    },
+    {
+      "userId": 15,
+      "email": "awukuansahemmanuel@gmail.com",
+      "clerkId": "user_2wpLc6GW8rOsUKpFekPS44TZsll",
+      "status": "success",
+      "message": "User created in Clerk"
+    }
+  ]
+}

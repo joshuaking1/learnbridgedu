@@ -1,35 +1,69 @@
 // services/content-service/middleware/authenticateToken.js
-import jwt from 'jsonwebtoken';
+import { Clerk } from "@clerk/clerk-sdk-node";
+import logger from "../../shared/logger";
 
+// Initialize Clerk client
+const clerk = new Clerk({
+  secretKey: process.env.CLERK_SECRET_KEY,
+});
+
+/**
+ * Middleware to authenticate requests using Clerk tokens
+ */
 function authenticateToken(req, res, next) {
-    // Get token from the Authorization header (e.g., "Bearer TOKEN")
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Extract the token part
+  try {
+    // Get the auth header
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN format
 
-    if (token == null) {
-        // No token provided
-        return res.status(401).json({ error: 'Unauthorized: Access token is missing.' });
+    if (!token) {
+      logger.warn("[ContentService] Missing authorization token");
+      return res.status(401).json({ error: "Unauthorized: No token provided" });
     }
 
-    // Verify the token
-    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-        if (err) {
-            // Token is invalid (expired, wrong signature, etc.)
-            console.error("JWT Verification Error:", err.message); // Log the specific error
-            if (err.name === 'TokenExpiredError') {
-                 return res.status(403).json({ error: 'Forbidden: Access token has expired.' });
-            }
-             return res.status(403).json({ error: 'Forbidden: Invalid access token.' });
+    // Verify the token with Clerk
+    clerk
+      .verifyToken(token)
+      .then((sessionClaims) => {
+        if (!sessionClaims || !sessionClaims.sub) {
+          logger.warn("[ContentService] Invalid token: Failed verification");
+          return res.status(401).json({ error: "Unauthorized: Invalid token" });
         }
 
-        // Token is valid, attach the payload to the request object
-        // The payload contains { userId, email, role } - whatever we put in it during login
-        req.user = user;
-        console.log("Token verified for user:", user.userId, "Role:", user.role); // Log successful verification
+        // Get the user from Clerk
+        return clerk.users.getUser(sessionClaims.sub).then((user) => {
+          if (!user) {
+            logger.warn(
+              `[ContentService] User not found for ID: ${sessionClaims.sub}`
+            );
+            return res
+              .status(401)
+              .json({ error: "Unauthorized: User not found" });
+          }
 
-        // Proceed to the next middleware or the route handler
-        next();
-    });
+          // Add user info to request object
+          req.user = {
+            userId: user.id,
+            email: user.emailAddresses[0]?.emailAddress,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.publicMetadata?.role || "student",
+          };
+
+          // Continue to the next middleware or route handler
+          next();
+        });
+      })
+      .catch((error) => {
+        logger.error("[ContentService] Error verifying token:", error);
+        return res.status(401).json({ error: "Unauthorized: Invalid token" });
+      });
+  } catch (error) {
+    logger.error("[ContentService] Error in auth middleware:", error);
+    return res
+      .status(500)
+      .json({ error: "Internal server error during authentication" });
+  }
 }
 
 export default authenticateToken;
