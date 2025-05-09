@@ -5,47 +5,66 @@
 # Print commands and their arguments as they are executed
 set -x
 
+# Show Node and NPM versions for debugging
+node --version
+npm --version
+
 # Install root dependencies
 npm install
 
-# Install dependencies for all services
-node scripts/install-service-dependencies.js
-
-# Install dependencies for shared service explicitly (critical for auth)
-cd services/shared
-npm install
-cd ../..
-
-# Install dependencies for user-service explicitly
-cd services/user-service
-npm install
-cd ../..
-
-# Install Clerk SDK explicitly in the root and all services directories
-npm install @clerk/clerk-sdk-node
+# Install Clerk SDK explicitly in the root
+npm install @clerk/clerk-sdk-node --save
 
 # Array of all services
 SERVICES=("ai-service" "analytics-service" "auth-service" "content-service" "discussion-service" "learning-path-service" "notification-service" "quiz-service" "shared" "teacher-tools-service" "user-service" "warming-controller")
 
-# Install Clerk SDK in each service
+# Install dependencies for each service with specific focus on critical dependencies
 for SERVICE in "${SERVICES[@]}"; do
-  echo "Installing Clerk SDK in $SERVICE..."
-  cd services/$SERVICE
-  npm install @clerk/clerk-sdk-node --save
-  cd ../..
+  if [ -d "services/$SERVICE" ] && [ -f "services/$SERVICE/package.json" ]; then
+    echo "=== Installing dependencies for $SERVICE service ==="
+    cd services/$SERVICE
+    
+    # Clean install to ensure proper dependency resolution
+    rm -rf node_modules package-lock.json
+    
+    # Install service dependencies
+    npm install
+    
+    # Explicitly install Clerk SDK for each service
+    npm install @clerk/clerk-sdk-node@^4.13.23 --save
+    
+    # Explicitly install dotenv for each service
+    npm install dotenv@^16.3.1 --save
+    
+    # Verify installation
+    npm list @clerk/clerk-sdk-node dotenv
+    
+    cd ../..
+    echo "=== Completed installation for $SERVICE service ==="
+  else
+    echo "Skipping $SERVICE - directory or package.json not found"
+  fi
 done
 
-# List installed packages to verify Clerk SDK is installed
+# Additional verification for shared service (critical for auth)
+echo "=== Verifying shared service dependencies ==="
+cd services/shared
+npm list @clerk/clerk-sdk-node dotenv
+ls -la node_modules/@clerk
+ls -la node_modules/dotenv
+cd ../..
+
+# Additional verification for user service (service currently failing)
+echo "=== Verifying user service dependencies ==="
+cd services/user-service
+npm list @clerk/clerk-sdk-node dotenv
+ls -la node_modules/@clerk
+ls -la node_modules/dotenv
+cd ../..
+
+# Final verification of root installation
 echo "Verifying Clerk SDK installation in root..."
 npm list @clerk/clerk-sdk-node
-
-# Verify in each service
-for SERVICE in "${SERVICES[@]}"; do
-  echo "Verifying Clerk SDK in $SERVICE..."
-  cd services/$SERVICE
-  npm list @clerk/clerk-sdk-node || echo "Not installed in $SERVICE"
-  cd ../..
-done
 
 # Print working directory and node_modules content for debugging
 pwd
