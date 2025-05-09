@@ -6,6 +6,7 @@
   "scripts": {},
   "dependencies": {
     "winston": "^3.10.0",
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "@clerk/clerk-sdk-node": "^4.13.11"
   }
 }

@@ -1,10 +1,36 @@
 // services/shared/middleware/clerkAuthMiddleware.js
+require('dotenv').config();
 const { Clerk } = require("@clerk/clerk-sdk-node");
 
-// Initialize Clerk client
-const clerk = new Clerk({
-  secretKey: process.env.CLERK_SECRET_KEY,
-});
+// Initialize Clerk client with proper error handling
+let clerk;
+
+function initializeClerk() {
+  if (!process.env.CLERK_SECRET_KEY) {
+    console.error('CLERK_SECRET_KEY is not defined in environment variables');
+    throw new Error('CLERK_SECRET_KEY is required');
+  }
+
+  try {
+    clerk = new Clerk({
+      secretKey: process.env.CLERK_SECRET_KEY,
+    });
+    console.log('Clerk SDK initialized successfully');
+    return clerk;
+  } catch (error) {
+    console.error('Failed to initialize Clerk SDK:', error.message);
+    throw error;
+  }
+}
+
+// Initialize Clerk on module load
+try {
+  clerk = initializeClerk();
+} catch (error) {
+  console.error('Error during Clerk initialization:', error.message);
+  // We won't create a mock here - better to fail fast if Clerk is required
+  // This will ensure deployment errors are caught early
+}
 
 /**
  * Middleware to authenticate requests using Clerk tokens
@@ -18,6 +44,14 @@ function clerkAuthMiddleware(options = {}) {
 
   return async (req, res, next) => {
     try {
+      // Check if Clerk is initialized
+      if (!clerk) {
+        logger.error("Clerk client is not initialized");
+        return res
+          .status(503)
+          .json({ error: "Service Unavailable: Authentication service not initialized" });
+      }
+
       // Get the authorization header
       const authHeader = req.headers.authorization;
 
