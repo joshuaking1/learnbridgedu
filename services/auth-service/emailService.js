@@ -24,7 +24,8 @@ const transporter = nodemailer.createTransport({
  * @param {string} frontendUrl - The base URL of the frontend application.
  */
 async function sendPasswordResetEmail(toEmail, resetToken, frontendUrl) {
-  const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`; // Example link structure
+  // Create a more secure reset link with token as a path parameter instead of query parameter
+  const resetLink = `${frontendUrl}/reset-password/${encodeURIComponent(resetToken)}`;
 
   const mailOptions = {
     from: `"LearnBridge Support" <${config.email.from}>`, // Sender address from config

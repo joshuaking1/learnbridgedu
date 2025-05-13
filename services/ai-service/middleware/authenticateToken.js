@@ -38,7 +38,8 @@ function authenticateToken(req, res, next) {
     }
 
     // Verify the token with Clerk
-    clerk.verifyToken(token)
+    // Add a 10-second leeway to handle clock skew and minor expiration issues
+    clerk.verifyToken(token, { leeway: 10 })
       .then(sessionClaims => {
         if (!sessionClaims || !sessionClaims.sub) {
           logger.warn("Invalid token: Failed verification");
@@ -70,6 +71,18 @@ function authenticateToken(req, res, next) {
       })
       .catch(error => {
         logger.error("Error verifying token:", error);
+        
+        // Check if the error is specifically a token expiration error
+        if (error.reason === "token-expired") {
+          // Return a specific error code and message for expired tokens
+          // The frontend can use this to trigger a token refresh
+          return res.status(401).json({ 
+            error: "Unauthorized: Token expired", 
+            code: "TOKEN_EXPIRED",
+            message: "Your session has expired. Please refresh the page to continue."
+          });
+        }
+        
         return res.status(401).json({ error: "Unauthorized: Invalid token" });
       });
   } catch (error) {

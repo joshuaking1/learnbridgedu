@@ -7,17 +7,64 @@ const db = require('./db'); // Import db connection
 const authenticateToken = require('./middleware/authenticateToken');
 const authorizeRole = require('./middleware/authorizeRole'); // <-- Import authorizeRole
 const requestLogger = require('morgan'); // Use morgan for logging
+const logger = require('./utils/logger'); // Import Winston logger
 const profileRoutes = require('./routes/profile'); // Import profile routes
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors());
-app.use(helmet());
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://app.learnbridgedu.com',
+  'https://learnbridgedu.com'
+];
+
+// Only add FRONTEND_URL if it's defined and valid
+if (process.env.FRONTEND_URL && 
+    (process.env.FRONTEND_URL.startsWith('http://') || 
+     process.env.FRONTEND_URL.startsWith('https://'))) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked request from origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+// Enhanced security with helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https://storage.googleapis.com", "https://cdn.learnbridgedu.com"],
+      connectSrc: ["'self'", ...allowedOrigins],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+}));
+
 app.use(requestLogger('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' })); // Limit request body size
+app.use(express.urlencoded({ extended: true, limit: '1mb' })); // Limit form data size
 
 // --- Public Routes ---
 
@@ -27,7 +74,7 @@ let lastWarmupTime = null;
 
 // Health Check
 app.get('/api/users/health', async (req, res) => {
-    console.log("Health check requested. Testing DB connection...");
+    logger.info("Health check requested. Testing DB connection...");
     try {
         // Test DB connection
         const isConnected = await db.testConnection();
@@ -55,7 +102,7 @@ app.get('/api/users/health', async (req, res) => {
             }
         });
     } catch (error) {
-        console.error("Error during health check:", error);
+        logger.error("Error during health check:", error);
         res.status(503).json({
             status: 'User Service is Up but not ready!',
             ready: false,
@@ -81,7 +128,7 @@ app.post('/api/users/warmup', async (req, res) => {
             lastWarmup: lastWarmupTime
         });
     } catch (error) {
-        console.error('Warmup failed:', error);
+        logger.error('Warmup failed:', error);
         res.status(500).json({
             status: 'Warmup failed',
             error: error.message
@@ -103,7 +150,7 @@ app.get('/api/users/me', authenticateToken, async (req, res) => {
     }
 
     try {
-        console.log(`[User Service] Fetching profile for user ID: ${userId}`);
+        logger.info(`[User Service] Fetching profile for user ID: ${userId}`);
         const query = `
             SELECT id, first_name, surname, email, school, location, position, phone, gender, role, email_verified, created_at, updated_at
             FROM users
@@ -117,11 +164,11 @@ app.get('/api/users/me', authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'User profile not found.' });
         }
 
-        console.log(`[User Service] Profile found for user ID: ${userId}`);
+        logger.info(`[User Service] Profile found for user ID: ${userId}`);
         res.status(200).json(userProfile);
 
     } catch (err) {
-        console.error(`[User Service] Error fetching profile for user ${userId}:`, err);
+        logger.error(`[User Service] Error fetching profile for user ${userId}:`, err);
         res.status(500).json({ error: 'Internal Server Error while fetching profile.' });
     }
 });
@@ -133,7 +180,7 @@ app.get('/api/users/me', authenticateToken, async (req, res) => {
 // Apply authenticateToken first, then authorizeRole
 app.get('/api/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
     // If both middlewares pass, req.user exists and has role 'admin'
-    console.log(`[User Service] /api/users requested by ADMIN user: ${req.user.userId}`);
+    logger.info(`[User Service] /api/users requested by ADMIN user: ${req.user.userId}`);
 
     try {
         // Fetch relevant user data
@@ -150,7 +197,7 @@ app.get('/api/users', authenticateToken, authorizeRole(['admin']), async (req, r
                 ORDER BY u.id ASC
             `;
             const result = await db.query(query);
-            console.log(`[User Service] Successfully fetched ${result.rows.length} users for admin request.`);
+            logger.info(`[User Service] Successfully fetched ${result.rows.length} users for admin request.`);
 
             // Add default values for missing fields
             const usersWithDefaults = result.rows.map(user => ({
@@ -164,7 +211,7 @@ app.get('/api/users', authenticateToken, authorizeRole(['admin']), async (req, r
         } catch (err) {
             // If the error is about missing table, fall back to basic query
             if (err.code === '42P01') { // PostgreSQL error code for undefined_table
-                console.log('[User Service] user_sessions table does not exist yet, falling back to basic query');
+                logger.info('[User Service] user_sessions table does not exist yet, falling back to basic query');
                 query = `
                     SELECT id, first_name, surname, email, role, school, location,
                            position, phone, gender, created_at, email_verified
@@ -181,7 +228,7 @@ app.get('/api/users', authenticateToken, authorizeRole(['admin']), async (req, r
                     last_login: null
                 }));
 
-                console.log(`[User Service] Successfully fetched ${result.rows.length} users for admin request (basic query).`);
+                logger.info(`[User Service] Successfully fetched ${result.rows.length} users for admin request (basic query).`);
                 res.status(200).json(usersWithDefaults);
                 return;
             } else {
@@ -191,7 +238,7 @@ app.get('/api/users', authenticateToken, authorizeRole(['admin']), async (req, r
         }
 
     } catch (err) {
-        console.error("[User Service] Error fetching all users (Admin request):", err);
+        logger.error("[User Service] Error fetching all users (Admin request):", err);
         res.status(500).json({ error: 'Internal Server Error fetching users.' });
     }
 });
@@ -199,7 +246,7 @@ app.get('/api/users', authenticateToken, authorizeRole(['admin']), async (req, r
 // GET Single User by ID (Admin only)
 app.get('/api/users/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
     const userId = req.params.id;
-    console.log(`[User Service] User details requested for ID: ${userId} by ADMIN user: ${req.user.userId}`);
+    logger.info(`[User Service] User details requested for ID: ${userId} by ADMIN user: ${req.user.userId}`);
 
     try {
         let query;
@@ -231,7 +278,7 @@ app.get('/api/users/:id', authenticateToken, authorizeRole(['admin']), async (re
         } catch (err) {
             // If the error is about missing table, fall back to basic query
             if (err.code === '42P01') { // PostgreSQL error code for undefined_table
-                console.log('[User Service] user_sessions table does not exist yet, falling back to basic query');
+                logger.info('[User Service] user_sessions table does not exist yet, falling back to basic query');
                 query = `
                     SELECT id, first_name, surname, email, role, school, location,
                            position, phone, gender, created_at, email_verified
@@ -260,7 +307,7 @@ app.get('/api/users/:id', authenticateToken, authorizeRole(['admin']), async (re
             }
         }
     } catch (err) {
-        console.error(`[User Service] Error fetching user ${userId}:`, err);
+        logger.error(`[User Service] Error fetching user ${userId}:`, err);
         res.status(500).json({ error: 'Internal Server Error fetching user details.' });
     }
 });
@@ -268,7 +315,7 @@ app.get('/api/users/:id', authenticateToken, authorizeRole(['admin']), async (re
 // GET User Activity Logs (Admin only)
 app.get('/api/users/:id/activity', authenticateToken, authorizeRole(['admin']), async (req, res) => {
     const userId = req.params.id;
-    console.log(`[User Service] Activity logs requested for user ID: ${userId} by ADMIN user: ${req.user.userId}`);
+    logger.info(`[User Service] Activity logs requested for user ID: ${userId} by ADMIN user: ${req.user.userId}`);
 
     try {
         try {
@@ -286,7 +333,7 @@ app.get('/api/users/:id/activity', authenticateToken, authorizeRole(['admin']), 
         } catch (err) {
             // If the error is about missing table, return empty array
             if (err.code === '42P01') { // PostgreSQL error code for undefined_table
-                console.log('[User Service] user_activity_logs table does not exist yet, returning empty array');
+                logger.info('[User Service] user_activity_logs table does not exist yet, returning empty array');
                 res.status(200).json([]);
                 return;
             } else {
@@ -295,7 +342,7 @@ app.get('/api/users/:id/activity', authenticateToken, authorizeRole(['admin']), 
             }
         }
     } catch (err) {
-        console.error(`[User Service] Error fetching activity logs for user ${userId}:`, err);
+        logger.error(`[User Service] Error fetching activity logs for user ${userId}:`, err);
         res.status(500).json({ error: 'Internal Server Error fetching activity logs.' });
     }
 });
@@ -306,7 +353,7 @@ app.put('/api/users/:id/role', authenticateToken, authorizeRole(['admin']), asyn
     const { role } = req.body;
     const adminId = req.user.userId;
 
-    console.log(`[User Service] Role update requested for user ID: ${userId} by ADMIN user: ${adminId}`);
+    logger.info(`[User Service] Role update requested for user ID: ${userId} by ADMIN user: ${adminId}`);
 
     // Validate role
     const validRoles = ['student', 'teacher', 'admin'];
@@ -354,10 +401,10 @@ app.put('/api/users/:id/role', authenticateToken, authorizeRole(['admin']), asyn
         } catch (logErr) {
             // If the table doesn't exist, just log a message and continue
             if (logErr.code === '42P01') {
-                console.log('[User Service] user_activity_logs table does not exist yet, skipping activity logging');
+                logger.info('[User Service] user_activity_logs table does not exist yet, skipping activity logging');
             } else {
                 // For other errors, log but don't fail the transaction
-                console.error('[User Service] Error logging role change activity:', logErr);
+                logger.error('[User Service] Error logging role change activity:', logErr);
             }
         }
 
@@ -370,14 +417,14 @@ app.put('/api/users/:id/role', authenticateToken, authorizeRole(['admin']), asyn
         });
     } catch (err) {
         await db.query('ROLLBACK');
-        console.error(`[User Service] Error updating role for user ${userId}:`, err);
+        logger.error(`[User Service] Error updating role for user ${userId}:`, err);
         res.status(500).json({ error: 'Internal Server Error updating user role.' });
     }
 });
 
 // GET Admin Statistics (Requires 'admin' role)
 app.get('/api/admin/stats', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-    console.log(`[User Service] /api/admin/stats requested by ADMIN user: ${req.user.userId}`);
+    logger.info(`[User Service] /api/admin/stats requested by ADMIN user: ${req.user.userId}`);
 
     try {
         // Get total users and active users
@@ -443,14 +490,14 @@ app.get('/api/admin/stats', authenticateToken, authorizeRole(['admin']), async (
             recentActivity: activityResult.rows
         });
     } catch (error) {
-        console.error('[User Service] Error fetching admin statistics:', error);
+        logger.error('[User Service] Error fetching admin statistics:', error);
         res.status(500).json({ error: 'Failed to fetch admin statistics' });
     }
 });
 
 // GET Admin Analytics (Requires 'admin' role)
 app.get('/api/admin/analytics', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-    console.log(`[User Service] /api/admin/analytics requested by ADMIN user: ${req.user.userId}`);
+    logger.info(`[User Service] /api/admin/analytics requested by ADMIN user: ${req.user.userId}`);
 
     const { timeRange = '30d' } = req.query;
     let interval;
@@ -592,14 +639,14 @@ app.get('/api/admin/analytics', authenticateToken, authorizeRole(['admin']), asy
             }))
         });
     } catch (error) {
-        console.error('[User Service] Error fetching admin analytics:', error);
+        logger.error('[User Service] Error fetching admin analytics:', error);
         res.status(500).json({ error: 'Failed to fetch admin analytics' });
     }
 });
 
 // GET System Settings (Requires 'admin' role)
 app.get('/api/admin/settings', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-    console.log(`[User Service] /api/admin/settings requested by ADMIN user: ${req.user.userId}`);
+    logger.info(`[User Service] /api/admin/settings requested by ADMIN user: ${req.user.userId}`);
 
     try {
         // Get current settings from database
@@ -676,14 +723,14 @@ app.get('/api/admin/settings', authenticateToken, authorizeRole(['admin']), asyn
             }
         });
     } catch (error) {
-        console.error('[User Service] Error fetching system settings:', error);
+        logger.error('[User Service] Error fetching system settings:', error);
         res.status(500).json({ error: 'Failed to fetch system settings' });
     }
 });
 
 // PUT System Settings (Requires 'admin' role)
 app.put('/api/admin/settings', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-    console.log(`[User Service] /api/admin/settings update requested by ADMIN user: ${req.user.userId}`);
+    logger.info(`[User Service] /api/admin/settings update requested by ADMIN user: ${req.user.userId}`);
 
     try {
         const {
@@ -748,7 +795,7 @@ app.put('/api/admin/settings', authenticateToken, authorizeRole(['admin']), asyn
 
         res.status(200).json({ message: 'Settings updated successfully' });
     } catch (error) {
-        console.error('[User Service] Error updating system settings:', error);
+        logger.error('[User Service] Error updating system settings:', error);
         res.status(500).json({ error: 'Failed to update system settings' });
     }
 });
@@ -771,5 +818,5 @@ function formatDuration(seconds) {
 
 // Start the server
 app.listen(PORT, () => {
-    console.log(`User Service running on port ${PORT}`);
+    logger.info(`User Service running on port ${PORT}`);
 });

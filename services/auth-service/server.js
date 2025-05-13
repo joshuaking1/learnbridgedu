@@ -22,19 +22,37 @@ const app = express();
 const PORT = config.port; // Use port from config
 
 // Middleware
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "https://app.learnbridgedu.com",
+  "https://learnbridgedu.com",
+];
+
+// Only add FRONTEND_URL if it's defined and valid
+if (process.env.FRONTEND_URL && 
+    (process.env.FRONTEND_URL.startsWith('http://') || 
+     process.env.FRONTEND_URL.startsWith('https://'))) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
 const corsOptions = {
-  origin: [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "https://app.learnbridgedu.com",
-    "https://learnbridgedu.com",
-    process.env.FRONTEND_URL,
-  ].filter(Boolean),
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      logger.warn(`CORS blocked request from origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
 };
-logger.info("CORS configured with origins:", corsOptions.origin);
+logger.info("CORS configured with origins:", allowedOrigins);
 app.use(cors(corsOptions));
 
 app.use(helmet());
@@ -594,15 +612,17 @@ app.post(
       const user = userResult.rows[0];
 
       if (user) {
-        // 2. Generate reset token
-        const resetToken = crypto.randomBytes(32).toString("hex");
+        // 2. Generate reset token with configurable length
+        const tokenLength = config.passwordReset?.tokenLength || 32; // Default to 32 bytes if not in config
+        const resetToken = crypto.randomBytes(tokenLength).toString("hex");
         const hashedToken = crypto
           .createHash("sha256")
           .update(resetToken)
           .digest("hex");
 
-        // 3. Set expiry (e.g., 1 hour)
-        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+        // 3. Set expiry using config value
+        const tokenExpiryMs = config.passwordReset?.tokenExpiry || 60 * 60 * 1000; // Default to 1 hour if not in config
+        const expiresAt = new Date(Date.now() + tokenExpiryMs);
 
         // 4. Store hashed token in DB (assuming 'password_reset_tokens' table exists)
         // Delete any existing tokens for this user first
@@ -722,12 +742,71 @@ app.post(
           .json({ error: "Invalid or expired password reset token." });
       }
 
-      // 3. Hash the new password
+      // 3. Get the user's current password and password history
+      const userId = tokenRecord.user_id;
+      const userResult = await db.query(
+        "SELECT password_hash FROM users WHERE id = $1",
+        [userId]
+      );
+      
+      if (!userResult.rows.length) {
+        return res.status(400).json({ error: "User not found." });
+      }
+      
+      // 3.1 Check if password history enforcement is enabled
+      if (config.passwordReset?.enforcePasswordHistory) {
+        // Get password history
+        const historyResult = await db.query(
+          "SELECT password_hash FROM password_history WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2",
+          [userId, config.passwordReset.passwordHistoryLimit || 5]
+        );
+        
+        // Add current password to the list of passwords to check against
+        const passwordsToCheck = [userResult.rows[0].password_hash, 
+          ...historyResult.rows.map(row => row.password_hash)];
+        
+        // Check if new password matches any previous passwords
+        for (const oldHash of passwordsToCheck) {
+          const matches = await bcrypt.compare(newPassword, oldHash);
+          if (matches) {
+            return res.status(400).json({ 
+              error: "New password cannot be the same as any of your recent passwords." 
+            });
+          }
+        }
+      }
+      
+      // 4. Hash the new password
       const salt = await bcrypt.genSalt(config.bcryptSaltRounds); // Use salt rounds from config
       const newHashedPassword = await bcrypt.hash(newPassword, salt);
 
-      // 4. Update the user's password in the users table
-      const userId = tokenRecord.user_id;
+      // 5. Store the current password in history before updating
+      if (config.passwordReset?.enforcePasswordHistory) {
+        try {
+          await db.query(
+            "INSERT INTO password_history (user_id, password_hash) VALUES ($1, $2)",
+            [userId, userResult.rows[0].password_hash]
+          );
+          
+          // Prune old password history entries if needed
+          await db.query(
+            `DELETE FROM password_history 
+             WHERE id NOT IN (
+               SELECT id FROM password_history 
+               WHERE user_id = $1 
+               ORDER BY created_at DESC 
+               LIMIT $2
+             ) 
+             AND user_id = $1`,
+            [userId, config.passwordReset.passwordHistoryLimit || 5]
+          );
+        } catch (historyErr) {
+          logger.error("Error storing password history:", historyErr);
+          // Continue with password reset even if history storage fails
+        }
+      }
+
+      // 6. Update the user's password in the users table
       await db.query("UPDATE users SET password_hash = $1 WHERE id = $2", [
         newHashedPassword,
         userId,
