@@ -87,6 +87,14 @@ const config = {
     qrCodeSize: 200, // Size of QR code image in pixels
     issuer: 'LearnBridge', // Name shown in authenticator apps
   },
+  
+  // Password reset settings
+  passwordReset: {
+    tokenExpiry: 30 * 60 * 1000, // 30 minutes in milliseconds (shorter than default 1 hour)
+    tokenLength: 64, // Length of the reset token in bytes before hex encoding
+    enforcePasswordHistory: true, // Whether to prevent reuse of previous passwords
+    passwordHistoryLimit: 5, // Number of previous passwords to remember
+  },
 };
 
 // --- Validation ---

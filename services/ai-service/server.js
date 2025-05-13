@@ -5,6 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const http = require('http'); // <-- Import Node's http module
 const { Server } = require("socket.io"); // <-- Import Socket.IO Server
+const { Clerk } = require("@clerk/clerk-sdk-node"); // Import Clerk for Socket.IO auth
 const groq = require('./groqClient'); // Import Groq client
 const tavilyClient = require('./tavilyClient'); // Import Tavily client
 const authenticateToken = require('./middleware/authenticateToken');
@@ -15,6 +16,7 @@ const supabase = require('./supabaseClient'); // Import Supabase client for DB &
 const db = require('./db'); // Import DB connection pool for PostgreSQL
 const { getTextFromPdf } = require('./utils/pdfProcessor'); // PDF text extraction utility
 const { generateEmbedding } = require('./utils/embeddingProcessor'); // Embedding generation utility
+const logger = require('./utils/logger'); // Import logger for consistent logging
 
 const app = express();
 const server = http.createServer(app); // <-- Create HTTP server from Express app
@@ -23,49 +25,193 @@ const server = http.createServer(app); // <-- Create HTTP server from Express ap
 const io = new Server(server, {
     cors: {
         // Allow requests from your frontend development server and deployed Vercel URL
-        // Replace 'https://learnbridge-eight.vercel.app' with your actual Vercel URL
         origin: [
             "http://localhost:3000", // Your local frontend dev server
-            "https://learnbridge-eight.vercel.app" // Your deployed frontend
-            // Add your custom domain later if needed: "https://app.learnbridgeedu.com"
+            "https://learnbridge-eight.vercel.app", // Your deployed frontend
+            "https://app.learnbridgeedu.com" // Production domain
         ],
         methods: ["GET", "POST"],
-        credentials: true // If you need to handle cookies or auth headers via socket later
+        credentials: true // Required for authentication
+    }
+});
+
+// Socket.IO authentication middleware
+io.use(async (socket, next) => {
+    try {
+        const token = socket.handshake.auth.token || 
+                     socket.handshake.headers.authorization?.split(' ')[1];
+        
+        if (!token) {
+            return next(new Error('Authentication error: No token provided'));
+        }
+        
+        // Initialize Clerk client
+        if (!process.env.CLERK_SECRET_KEY) {
+            return next(new Error('Authentication configuration missing'));
+        }
+        
+        const clerk = new Clerk({
+            secretKey: process.env.CLERK_SECRET_KEY,
+        });
+        
+        // Verify token with 10-second leeway
+        try {
+            const sessionClaims = await clerk.verifyToken(token, { leeway: 10 });
+            if (!sessionClaims || !sessionClaims.sub) {
+                return next(new Error('Invalid token'));
+            }
+            
+            // Get user from Clerk
+            const user = await clerk.users.getUser(sessionClaims.sub);
+            if (!user) {
+                return next(new Error('User not found'));
+            }
+            
+            // Attach user data to socket
+            socket.user = {
+                userId: user.id,
+                email: user.emailAddresses[0]?.emailAddress,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                role: user.publicMetadata?.role || "student",
+            };
+            
+            next();
+        } catch (error) {
+            logger.error('Socket authentication error:', error);
+            return next(new Error('Authentication failed: ' + (error.message || 'Invalid token')));
+        }
+    } catch (error) {
+        logger.error('Socket middleware error:', error);
+        return next(new Error('Internal server error during authentication'));
     }
 });
 
 const PORT = process.env.PORT || 3004;
 
+// Define allowed origins
+const allowedOrigins = [
+    "http://localhost:3000",
+    "https://learnbridge-eight.vercel.app",
+    "https://app.learnbridgeedu.com"
+];
+
+// CORS configuration for HTTP routes
+const corsOptions = {
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps, curl, etc.)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            logger.warn(`CORS blocked request from origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+    maxAge: 86400 // 24 hours
+};
+
 // Middleware (for Express routes)
-app.use(cors()); // Keep CORS for regular HTTP routes too
-app.use(helmet());
+app.use(cors(corsOptions)); // Use configured CORS options
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:"],
+            connectSrc: ["'self'", ...allowedOrigins],
+            frameSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            upgradeInsecureRequests: []
+        }
+    },
+    crossOriginEmbedderPolicy: false, // May need to adjust based on your requirements
+    crossOriginResourcePolicy: { policy: "cross-origin" } // May need to adjust based on your requirements
+}));
 app.use(requestLogger('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Add additional security headers
+app.use((req, res, next) => {
+    // Prevent clickjacking
+    res.setHeader('X-Frame-Options', 'DENY');
+    
+    // Strict Transport Security (force HTTPS)
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+    
+    // Prevent MIME type sniffing
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    
+    // Referrer policy
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    
+    // Permissions policy
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    
+    next();
+});
+
 // --- Socket.IO Connection Logic ---
 io.on('connection', (socket) => {
-    console.log(`[Socket.IO] User connected: ${socket.id}`);
+    const { userId, firstName, role } = socket.user || {};
+    logger.info(`[Socket.IO] User connected: ${socket.id} (User: ${userId}, Role: ${role})`);
 
-    // Send a welcome message to the newly connected client
-    socket.emit('welcome', { message: `Welcome! You are connected with ID: ${socket.id}` });
+    // Join a room based on user ID for targeted messages
+    if (userId) {
+        socket.join(`user:${userId}`);
+        
+        // Join a room based on role for role-specific broadcasts
+        if (role) {
+            socket.join(`role:${role}`);
+        }
+    }
+
+    // Send a personalized welcome message to the authenticated client
+    socket.emit('welcome', { 
+        message: `Welcome${firstName ? ' ' + firstName : ''}! You are connected with ID: ${socket.id}`,
+        user: {
+            id: userId,
+            role: role
+        }
+    });
 
     // Example: Listen for a message from the client
     socket.on('clientPing', (data) => {
-        console.log(`[Socket.IO] Received clientPing from ${socket.id}:`, data);
+        logger.info(`[Socket.IO] Received clientPing from ${socket.id} (User: ${userId}):`, data);
         // Send a pong back to the specific client
-        socket.emit('serverPong', { message: 'Pong from server!', timestamp: Date.now() });
+        socket.emit('serverPong', { 
+            message: 'Pong from server!', 
+            timestamp: Date.now(),
+            user: {
+                id: userId,
+                role: role
+            }
+        });
     });
 
     // Handle disconnection
     socket.on('disconnect', (reason) => {
-        console.log(`[Socket.IO] User disconnected: ${socket.id}. Reason: ${reason}`);
+        logger.info(`[Socket.IO] User disconnected: ${socket.id} (User: ${userId}). Reason: ${reason}`);
+        
+        // Clean up user-specific rooms
+        if (userId) {
+            socket.leave(`user:${userId}`);
+            if (role) {
+                socket.leave(`role:${role}`);
+            }
+        }
     });
 
     // Handle connection errors for this specific socket
-     socket.on('error', (err) => {
-        console.error(`[Socket.IO] Socket error for ${socket.id}:`, err);
-     });
+    socket.on('error', (err) => {
+        logger.error(`[Socket.IO] Socket error for ${socket.id} (User: ${userId}):`, err);
+    });
 });
 
 // --- Existing HTTP Routes ---
