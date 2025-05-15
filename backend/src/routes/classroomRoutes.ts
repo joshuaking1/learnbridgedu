@@ -1,25 +1,24 @@
 import express from 'express';
 import { classroomController } from '../controllers/classroomController';
+import { authenticateToken } from '../middleware/authenticateToken';
+import { authorizeRole } from '../middleware/authorizeRole';
 
 const router = express.Router();
 
-// Classroom management
-router.post('/', classroomController.createClassroom);
-router.get('/:id', classroomController.getClassroom);
+// Apply authentication to all routes
+router.use(authenticateToken);
 
-// Participant management
+// Public routes (authenticated but no specific role required)
+router.get('/:id', classroomController.getClassroom);
 router.post('/:id/join', classroomController.joinClassroom);
 router.post('/:id/leave', classroomController.leaveClassroom);
 router.patch('/:id/participant-status', classroomController.updateParticipantStatus);
-
-// Breakout rooms
-router.post('/:id/breakout-rooms', classroomController.createBreakoutRoom);
-router.patch('/:id/breakout-rooms/:roomId/toggle', classroomController.toggleBreakoutRoom);
-
-// Messages
 router.post('/:id/messages', classroomController.addMessage);
 
-// Resources
-router.post('/:id/resources', classroomController.addResource);
+// Teacher-only routes
+router.post('/', authorizeRole(['teacher', 'admin']), classroomController.createClassroom);
+router.post('/:id/breakout-rooms', authorizeRole(['teacher', 'admin']), classroomController.createBreakoutRoom);
+router.patch('/:id/breakout-rooms/:roomId/toggle', authorizeRole(['teacher', 'admin']), classroomController.toggleBreakoutRoom);
+router.post('/:id/resources', authorizeRole(['teacher', 'admin']), classroomController.addResource);
 
-export default router; 
+export default router;

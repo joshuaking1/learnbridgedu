@@ -14,9 +14,20 @@ if (!process.env.DATABASE_URL || !process.env.DATABASE_URL.startsWith('postgresq
     // process.exit(1); // Optional: Stop the service if DB URL is missing
 }
 
+// Configure SSL based on environment
+const sslConfig = process.env.NODE_ENV === 'production' 
+    ? { rejectUnauthorized: true } // Enforce SSL certificate validation in production
+    : process.env.NODE_ENV === 'staging'
+        ? { rejectUnauthorized: true } // Enforce SSL certificate validation in staging
+        : process.env.DATABASE_URL?.includes('localhost') 
+            ? false // Disable SSL for localhost connections
+            : { rejectUnauthorized: true }; // Default to secure
+
+logger.info(`Database SSL configuration: ${JSON.stringify({ ssl: sslConfig })}`);
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false } // Keep this for Supabase
+    ssl: sslConfig
 });
 
 pool.on('connect', (client) => { // The 'connect' event receives the client object
