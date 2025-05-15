@@ -13,16 +13,16 @@ router.get('/', asyncHandler(async (req, res) => {
   const { forum_id, limit, offset, sort } = req.query;
   
   try {
-    // Modified query to use the existing users table schema
+    // Modified query to use the users table
     let query = `
       SELECT t.*, 
              COUNT(p.id) AS post_count, 
              COALESCE(MAX(p.created_at), t.created_at) AS last_activity, 
-             COALESCE(CONCAT(u.first_name, ' ', u.surname), 'User ' || t.user_id) AS author_name,
+             COALESCE(u.name, 'User ' || t.user_id) AS author_name,
              (SELECT COUNT(*) FROM post_reactions pr JOIN posts p2 ON pr.post_id = p2.id WHERE p2.thread_id = t.id) AS reaction_count
       FROM threads t
       LEFT JOIN posts p ON t.id = p.thread_id
-      LEFT JOIN users u ON CAST(t.user_id AS VARCHAR) = u.clerk_id
+      LEFT JOIN users u ON t.user_id = u.id
     `;
     
     const queryParams = [];
@@ -37,7 +37,7 @@ router.get('/', asyncHandler(async (req, res) => {
       query += ` WHERE ${whereClause.join(' AND ')}`;
     }
     
-    query += ` GROUP BY t.id, u.first_name, u.surname, u.clerk_id`;
+    query += ` GROUP BY t.id, u.name, u.id`;
     
     // Sorting
     const sortOptions = {
@@ -100,13 +100,13 @@ router.get('/:id', asyncHandler(async (req, res) => {
     // Get thread details with debug output
     console.log('Running thread query with ID:', threadId);
     
-    // Modified query to use the existing users table schema
+    // Modified query to use the users table
     const threadResult = await db.query(
       `SELECT t.*, f.name AS forum_name, 
-              COALESCE(CONCAT(u.first_name, ' ', u.surname), 'User ' || t.user_id) AS author_name
+              COALESCE(u.name, 'User ' || t.user_id) AS author_name
        FROM threads t 
        JOIN forums f ON t.forum_id = f.id 
-       LEFT JOIN users u ON CAST(t.user_id AS VARCHAR) = u.clerk_id
+       LEFT JOIN users u ON t.user_id = u.id
        WHERE t.id = $1`,
       [threadId]
     );

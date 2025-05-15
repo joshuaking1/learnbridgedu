@@ -1,0 +1,383 @@
+// routes/posts.js
+const express = require('express');
+const router = express.Router();
+
+// Error handling wrapper for async route handlers
+const asyncHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
+
+// Get posts for a thread with pagination
+router.get('/thread/:threadId', asyncHandler(async (req, res) => {
+  const db = req.app.locals.db;
+  const { threadId } = req.params;
+  const { limit = 20, offset = 0, include_replies = true } = req.query;
+  
+  try {
+    // Add debugging
+    console.log('Fetching posts for thread:', threadId);
+    
+    // Modified query to handle the user_id string to id integer type mismatch
+    let query = `
+      SELECT p.*, 
+             COALESCE((SELECT name FROM users WHERE id::text = p.user_id), 'Unknown User') AS author_name, 
+             COALESCE((SELECT avatar_url FROM users WHERE id::text = p.user_id), '/default-avatar.png') AS avatar_url,
+             (SELECT json_agg(json_build_object('type', pr.reaction_type, 'count', COUNT(*))) 
+              FROM post_reactions pr 
+              WHERE pr.post_id = p.id 
+              GROUP BY pr.post_id, pr.reaction_type) AS reactions
+      FROM posts p
+    `;
+    
+    const queryParams = [parseInt(threadId, 10)];
+    
+    if (!include_replies || include_replies === 'false') {
+      query += ` WHERE p.thread_id = $1 AND p.parent_id IS NULL`;
+    } else {
+      query += ` WHERE p.thread_id = $1`;
+    }
+    
+    query += ` ORDER BY 
+                CASE WHEN p.parent_id IS NULL THEN p.created_at ELSE 
+                  (SELECT created_at FROM posts WHERE id = p.parent_id) 
+                END ASC,
+                p.parent_id NULLS FIRST,
+                p.created_at ASC`;
+    
+    // Add pagination
+    query += ` LIMIT $${queryParams.push(parseInt(limit))} OFFSET $${queryParams.push(parseInt(offset))}`;
+    
+    const result = await db.query(query, queryParams);
+    
+    // Count total for pagination
+    const countParams = [parseInt(threadId, 10)];
+    let countQuery = 'SELECT COUNT(*) FROM posts WHERE thread_id = $1';
+    
+    if (!include_replies || include_replies === 'false') {
+      countQuery += ' AND parent_id IS NULL';
+    }
+    
+    const countResult = await db.query(countQuery, countParams);
+    
+    res.json({
+      posts: result.rows,
+      total: parseInt(countResult.rows[0].count),
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+  } catch (err) {
+    console.error(`Error fetching posts for thread ${threadId}:`, err);
+    res.status(500).json({ error: 'Failed to fetch posts' });
+  }
+}));
+
+// Get single post with replies
+router.get('/:id', asyncHandler(async (req, res) => {
+  const db = req.app.locals.db;
+  const { id } = req.params;
+  
+  try {
+    // Get main post
+    const postResult = await db.query(
+      `SELECT p.*, 
+              u.name AS author_name, 
+              u.avatar_url
+       FROM posts p
+       LEFT JOIN users u ON p.user_id = u.id
+       WHERE p.id = $1`,
+      [id]
+    );
+    
+    if (postResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    const post = postResult.rows[0];
+    
+    // Get reactions
+    const reactionsResult = await db.query(
+      `SELECT reaction_type, COUNT(*) as count 
+       FROM post_reactions 
+       WHERE post_id = $1 
+       GROUP BY reaction_type`,
+      [id]
+    );
+    
+    post.reactions = reactionsResult.rows;
+    
+    // Get replies if this is a parent post
+    const repliesResult = await db.query(
+      `SELECT p.*, 
+              u.name AS author_name, 
+              u.avatar_url
+       FROM posts p
+       LEFT JOIN users u ON p.user_id = u.id
+       WHERE p.parent_id = $1
+       ORDER BY p.created_at ASC`,
+      [id]
+    );
+    
+    post.replies = repliesResult.rows;
+    
+    // Get attachments
+    const attachmentsResult = await db.query(
+      'SELECT * FROM post_attachments WHERE post_id = $1',
+      [id]
+    );
+    
+    post.attachments = attachmentsResult.rows;
+    
+    res.json(post);
+  } catch (err) {
+    console.error(`Error fetching post id ${id}:`, err);
+    res.status(500).json({ error: 'Failed to fetch post' });
+  }
+}));
+
+// Create a new post
+router.post('/', asyncHandler(async (req, res) => {
+  const db = req.app.locals.db;
+  const { thread_id, user_id, content, parent_id } = req.body;
+  
+  // Validate required fields
+  if (!thread_id || !user_id || !content) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  
+  try {
+    // Check if thread exists and is not locked
+    const threadResult = await db.query(
+      'SELECT is_locked FROM threads WHERE id = $1',
+      [thread_id]
+    );
+    
+    if (threadResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Thread not found' });
+    }
+    
+    if (threadResult.rows[0].is_locked) {
+      return res.status(403).json({ error: 'Thread is locked' });
+    }
+    
+    // If this is a reply, check if parent post exists
+    if (parent_id) {
+      const parentResult = await db.query(
+        'SELECT id FROM posts WHERE id = $1 AND thread_id = $2',
+        [parent_id, thread_id]
+      );
+      
+      if (parentResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Parent post not found' });
+      }
+    }
+    
+    // Create the post
+    const result = await db.query(
+      'INSERT INTO posts (thread_id, user_id, content, parent_id) VALUES ($1, $2, $3, $4) RETURNING *',
+      [thread_id, user_id, content, parent_id]
+    );
+    
+    const newPost = result.rows[0];
+    
+    // Update thread's last_activity_at
+    await db.query(
+      'UPDATE threads SET last_activity_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [thread_id]
+    );
+    
+    // Get author info for response
+    const userResult = await db.query(
+      'SELECT name, avatar_url FROM users WHERE id = $1',
+      [user_id]
+    );
+    
+    if (userResult.rows.length > 0) {
+      newPost.author_name = userResult.rows[0].name;
+      newPost.avatar_url = userResult.rows[0].avatar_url;
+    }
+    
+    res.status(201).json(newPost);
+    
+    // Send real-time notification via WebSocket
+    req.app.get('io').to(`thread:${thread_id}`).emit('newPost', newPost);
+    
+    // Check if this is a new top-level post for AI bot response
+    if (!parent_id) {
+      // Send post to AI service for potential bot response
+      const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:3003';
+      const axios = require('axios');
+      try {
+        await axios.post(`${aiServiceUrl}/api/bot/forum-post`, { postId: newPost.id });
+      } catch (botErr) {
+        console.error('Error notifying AI service about new post:', botErr);
+        // Non-critical error, don't fail the request
+      }
+    }
+  } catch (err) {
+    console.error('Error creating post:', err);
+    res.status(500).json({ error: 'Failed to create post' });
+  }
+}));
+
+// Update post
+router.put('/:id', asyncHandler(async (req, res) => {
+  const db = req.app.locals.db;
+  const { id } = req.params;
+  const { content, is_solution } = req.body;
+  const user_id = req.user.id; // From auth middleware
+  
+  try {
+    // Check if post exists and belongs to user
+    const postResult = await db.query(
+      'SELECT thread_id, user_id FROM posts WHERE id = $1',
+      [id]
+    );
+    
+    if (postResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    const post = postResult.rows[0];
+    
+    // Only allow user to edit their own posts (except for is_solution flag)
+    if (content && post.user_id !== user_id) {
+      return res.status(403).json({ error: 'Not authorized to edit this post' });
+    }
+    
+    // Build update query based on what was provided
+    let updateQuery = 'UPDATE posts SET updated_at = CURRENT_TIMESTAMP';
+    const queryParams = [];
+    
+    if (content) {
+      queryParams.push(content);
+      updateQuery += `, content = $${queryParams.length}`;
+    }
+    
+    if (is_solution !== undefined) {
+      queryParams.push(is_solution);
+      updateQuery += `, is_solution = $${queryParams.length}`;
+    }
+    
+    queryParams.push(id);
+    updateQuery += ` WHERE id = $${queryParams.length} RETURNING *`;
+    
+    const result = await db.query(updateQuery, queryParams);
+    
+    res.json(result.rows[0]);
+    
+    // Notify WebSocket clients about the update
+    req.app.get('io').to(`thread:${post.thread_id}`).emit('postUpdated', result.rows[0]);
+  } catch (err) {
+    console.error(`Error updating post id ${id}:`, err);
+    res.status(500).json({ error: 'Failed to update post' });
+  }
+}));
+
+// Delete post
+router.delete('/:id', asyncHandler(async (req, res) => {
+  const db = req.app.locals.db;
+  const { id } = req.params;
+  const user_id = req.user.id; // From auth middleware
+  
+  try {
+    // Get post details
+    const postResult = await db.query(
+      'SELECT thread_id, user_id FROM posts WHERE id = $1',
+      [id]
+    );
+    
+    if (postResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    const post = postResult.rows[0];
+    
+    // Only allow user to delete their own posts
+    if (post.user_id !== user_id) {
+      return res.status(403).json({ error: 'Not authorized to delete this post' });
+    }
+    
+    // Delete all reactions to this post
+    await db.query('DELETE FROM post_reactions WHERE post_id = $1', [id]);
+    
+    // Delete the post
+    await db.query('DELETE FROM posts WHERE id = $1', [id]);
+    
+    res.json({ message: 'Post deleted successfully' });
+    
+    // Notify WebSocket clients about the deletion
+    req.app.get('io').to(`thread:${post.thread_id}`).emit('postDeleted', { id });
+  } catch (err) {
+    console.error(`Error deleting post id ${id}:`, err);
+    res.status(500).json({ error: 'Failed to delete post' });
+  }
+}));
+
+// Add reaction to post
+router.post('/:id/reactions', asyncHandler(async (req, res) => {
+  const db = req.app.locals.db;
+  const { id } = req.params;
+  const { user_id, reaction_type } = req.body;
+  
+  if (!user_id || !reaction_type) {
+    return res.status(400).json({ error: 'User ID and reaction type are required' });
+  }
+  
+  // Validate reaction type
+  const validReactions = ['like', 'helpful', 'thanks', 'insightful'];
+  if (!validReactions.includes(reaction_type)) {
+    return res.status(400).json({ error: 'Invalid reaction type' });
+  }
+  
+  try {
+    // Check if post exists
+    const postResult = await db.query('SELECT thread_id FROM posts WHERE id = $1', [id]);
+    
+    if (postResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    const thread_id = postResult.rows[0].thread_id;
+    
+    // Check if user already reacted with this type
+    const existingResult = await db.query(
+      'SELECT id FROM post_reactions WHERE post_id = $1 AND user_id = $2 AND reaction_type = $3',
+      [id, user_id, reaction_type]
+    );
+    
+    if (existingResult.rows.length > 0) {
+      // Remove the reaction (toggle behavior)
+      await db.query(
+        'DELETE FROM post_reactions WHERE post_id = $1 AND user_id = $2 AND reaction_type = $3',
+        [id, user_id, reaction_type]
+      );
+      
+      res.json({ message: 'Reaction removed' });
+    } else {
+      // Add the reaction
+      await db.query(
+        'INSERT INTO post_reactions (post_id, user_id, reaction_type) VALUES ($1, $2, $3)',
+        [id, user_id, reaction_type]
+      );
+      
+      res.json({ message: 'Reaction added' });
+    }
+    
+    // Get updated reaction counts
+    const updatedReactions = await db.query(
+      'SELECT reaction_type, COUNT(*) as count FROM post_reactions WHERE post_id = $1 GROUP BY reaction_type',
+      [id]
+    );
+    
+    // Notify WebSocket clients about the reaction update
+    req.app.get('io').to(`thread:${thread_id}`).emit('reactionUpdated', {
+      post_id: id,
+      reactions: updatedReactions.rows
+    });
+  } catch (err) {
+    console.error(`Error managing reaction for post ${id}:`, err);
+    res.status(500).json({ error: 'Failed to manage reaction' });
+  }
+}));
+
+module.exports = router;
