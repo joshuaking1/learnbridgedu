@@ -62,7 +62,7 @@ function authenticateToken(req, res, next) {
         return res.status(401).json({ error: 'Authentication token required' });
     }
     
-    jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'], clockTolerance: 300 }, (err, user) => { // Added algorithms and clockTolerance configuration
+    jwt.verify(token, JWT_SECRET, (err, user) => { // Removed explicit algorithm to match auth-service configuration
         if (err) {
             console.error('[AI Service] JWT Verification Error:', err); // Log the error for more details
             if (err.name === 'TokenExpiredError') {
