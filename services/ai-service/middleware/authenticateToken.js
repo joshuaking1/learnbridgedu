@@ -7,6 +7,9 @@ const logger = require("../utils/logger");
 // Direct implementation of Clerk authentication middleware with JWT template support
 // This avoids dependency resolution issues on Render.com by not using the shared middleware
 function authenticateToken(req, res, next) {
+  // For testing: Check if we should ignore token expiration
+  // This should only be used in development/testing environments
+  const ignoreExpiration = process.env.IGNORE_TOKEN_EXPIRATION === "true";
   try {
     // Get the authorization header
     const authHeader = req.headers.authorization;
@@ -55,8 +58,9 @@ function authenticateToken(req, res, next) {
     // Use Clerk's JWT verification for custom JWT templates
     clerk
       .verifyToken(token, {
-        leeway: 60,
+        leeway: 300, // Increase leeway to 5 minutes to handle clock skew
         skipJwtSignatureVerification: false, // Ensure signature verification is performed
+        ignoreExpiration: ignoreExpiration, // Use the flag for testing
       })
       .then((sessionClaims) => {
         if (!sessionClaims || !sessionClaims.sub) {
@@ -198,42 +202,104 @@ function verifyLegacyJwt(token, req, res, next) {
     try {
       // First try with default algorithm
       let user;
+
+      // Define all algorithms to try
+      const algorithmsToTry = [
+        "HS256",
+        "HS512",
+        "HS384",
+        "RS256",
+        "RS384",
+        "RS512",
+        "ES256",
+        "ES384",
+        "ES512",
+        "PS256",
+        "PS384",
+        "PS512",
+      ];
+
+      // Try default verification first (no algorithm specified)
       try {
-        user = jwt.verify(token, JWT_SECRET);
-      } catch (defaultAlgError) {
-        // If default fails, try with explicit HS256 algorithm
-        if (
-          defaultAlgError.name === "JsonWebTokenError" &&
-          defaultAlgError.message.includes("algorithm")
-        ) {
-          logger.warn(
-            "JWT verification failed with default algorithm, trying HS256 explicitly"
-          );
+        logger.info("Attempting JWT verification with default settings");
+        user = jwt.verify(token, JWT_SECRET, {
+          ignoreExpiration: ignoreExpiration,
+        });
+        logger.info("JWT verification successful with default settings");
+      } catch (defaultError) {
+        logger.warn(
+          `JWT verification with default settings failed: ${defaultError.message}`
+        );
+
+        // If default fails, try each algorithm explicitly
+        let verificationSuccessful = false;
+
+        for (const algorithm of algorithmsToTry) {
           try {
-            user = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
-          } catch (hs256Error) {
-            // If HS256 fails, try with HS512 algorithm
-            if (
-              hs256Error.name === "JsonWebTokenError" &&
-              hs256Error.message.includes("algorithm")
-            ) {
-              logger.warn(
-                "JWT verification failed with HS256 algorithm, trying HS512"
+            logger.info(
+              `Attempting JWT verification with ${algorithm} algorithm`
+            );
+            user = jwt.verify(token, JWT_SECRET, {
+              algorithms: [algorithm],
+              ignoreExpiration: true, // Temporarily ignore expiration to test if algorithm works
+            });
+
+            // If we're in testing mode and should ignore expiration, we can stop here
+            if (ignoreExpiration) {
+              logger.info(
+                `Using algorithm ${algorithm} with expiration ignored for testing`
               );
-              try {
-                user = jwt.verify(token, JWT_SECRET, { algorithms: ["HS512"] });
-              } catch (hs512Error) {
-                // If all algorithms fail, throw the original error
-                throw defaultAlgError;
-              }
-            } else {
-              // If it's not an algorithm error, throw the HS256 error
-              throw hs256Error;
+              verificationSuccessful = true;
+              break;
             }
+
+            // If we get here, the algorithm worked but might have other issues
+            logger.info(
+              `JWT verification with ${algorithm} successful (ignoring expiration)`
+            );
+
+            // Now try again with expiration check to get the real error if any
+            try {
+              user = jwt.verify(token, JWT_SECRET, { algorithms: [algorithm] });
+              logger.info(
+                `JWT verification with ${algorithm} fully successful`
+              );
+              verificationSuccessful = true;
+              break; // Exit the loop if successful
+            } catch (expError) {
+              if (expError.name === "TokenExpiredError") {
+                // Token is expired but algorithm is correct
+                logger.warn(
+                  `JWT token is expired but ${algorithm} algorithm is correct`
+                );
+                throw expError; // Re-throw expiration error
+              } else {
+                // Some other error
+                logger.warn(
+                  `JWT verification with ${algorithm} failed after algorithm check: ${expError.message}`
+                );
+              }
+            }
+          } catch (algError) {
+            // Skip to next algorithm if this one didn't work
+            if (algError.name === "TokenExpiredError") {
+              // Token is expired but algorithm is correct
+              logger.warn(
+                `JWT token is expired but ${algorithm} algorithm is correct`
+              );
+              throw algError; // Re-throw expiration error
+            }
+
+            logger.warn(
+              `JWT verification with ${algorithm} failed: ${algError.message}`
+            );
           }
-        } else {
-          // If it's not an algorithm error, throw the original error
-          throw defaultAlgError;
+        }
+
+        // If we tried all algorithms and none worked
+        if (!verificationSuccessful) {
+          logger.error("JWT verification failed with all algorithms");
+          throw defaultError; // Throw the original error
         }
       }
 
