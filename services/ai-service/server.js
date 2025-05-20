@@ -54,7 +54,23 @@ if (DB_CONNECTION_STRING) {
 }
 
 // --- Authentication Middleware ---
+// TEMPORARY: Modified for presentation to bypass JWT verification
 function authenticateToken(req, res, next) {
+    console.log('[AI Service] Using temporary authentication bypass for presentation');
+    
+    // Set a mock user for all requests
+    req.user = {
+        userId: 'presentation-user',
+        role: 'admin', // Admin role to bypass usage limits
+        email: 'presentation@learnbridge.edu',
+        firstName: 'LearnBridge',
+        lastName: 'Presenter'
+    };
+    
+    // Continue to the next middleware
+    next();
+    
+    /* ORIGINAL CODE - Temporarily commented out
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
     
@@ -62,9 +78,9 @@ function authenticateToken(req, res, next) {
         return res.status(401).json({ error: 'Authentication token required' });
     }
     
-    jwt.verify(token, JWT_SECRET, (err, user) => { // Removed explicit algorithm to match auth-service configuration
+    jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) {
-            console.error('[AI Service] JWT Verification Error:', err); // Log the error for more details
+            console.error('[AI Service] JWT Verification Error:', err);
             if (err.name === 'TokenExpiredError') {
                 return res.status(403).json({ error: 'Invalid or expired token: Token has expired.', details: err.message });
             } else {
@@ -74,6 +90,7 @@ function authenticateToken(req, res, next) {
         req.user = user;
         next();
     });
+    */
 }
 
 // --- Usage Limit Service ---
