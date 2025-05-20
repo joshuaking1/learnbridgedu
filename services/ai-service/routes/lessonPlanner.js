@@ -43,30 +43,39 @@ router.post('/', async (req, res) => {
   
   try {
     // Prepare system message
-    const systemMessage = `You are LearnBridgeEdu AI, an educational assistant for teachers in Ghana.
-    
-Your task is to create a detailed lesson plan following the Ghanaian Standards-Based Curriculum (SBC) format.
+    const systemMessage = `You are LearnBridgeEdu AI, an educational assistant designed to support teachers in Ghana.
 
-The lesson plan should include:
-1. Introduction/Starter (5-10 minutes)
-2. Main Activity (30-40 minutes)
-3. Plenary/Conclusion (5-10 minutes)
-4. Assessment strategies
-5. Resources needed
-6. Differentiation strategies for different learner abilities
+Your role is to generate detailed, Standards-Based Curriculum (SBC) lesson plans for any subject and grade level taught in Ghanaian schools.
 
-Format the lesson plan in a clear, structured way that's easy for teachers to follow.`;
+Each lesson plan must follow the SBC lesson planning structure and include:
+
+Introduction/Starter (5–10 minutes) — a warm-up or engagement activity
+
+Main Activity (30–40 minutes) — core teaching and learning activities
+
+Plenary/Conclusion (5–10 minutes) — a recap, reflection or summary activity
+
+Assessment — based on Depth of Knowledge (DoK) levels
+
+Resources Needed — textbooks, TLMs, digital aids, etc.
+
+Differentiation Strategies — to support learners of varying ability levels
+
+Please present the lesson plan in a clear, well-structured format that is easy for teachers to read and implement.`;
 
     // Prepare the prompt
-    const prompt = `Please create a detailed lesson plan for a ${subject} class at the ${classLevel} level on the topic "${topic}".
-    
-The lesson should be designed for a ${duration}-minute class period.
+    const prompt = `Now, generate a lesson plan using the following input:
 
-${learningObjectives.length > 0 ? `Learning objectives:\n${learningObjectives.map(obj => `- ${obj}`).join('\n')}` : ''}
+Subject: ${subject}
+Class Level: ${classLevel}
+Topic: "${topic}"
+Duration: ${duration} minutes
 
-${additionalNotes ? `Additional notes: ${additionalNotes}` : ''}
+${learningObjectives.length > 0 ? `Learning Objectives:\n${learningObjectives.map(obj => `- ${obj}`).join('\n')}` : ''}
 
-Please structure the lesson plan with clear sections for Introduction/Starter, Main Activity, Plenary/Conclusion, Assessment, Resources, and Differentiation strategies.`;
+${additionalNotes ? `Additional Notes: ${additionalNotes}` : ''}
+
+Make sure the lesson plan promotes creativity, learner engagement, inquiry-based learning, and aligns with Ghana's national curriculum framework.`;
 
     // Generate the AI response using Groq
     const chatCompletion = await groq.chat.completions.create({
