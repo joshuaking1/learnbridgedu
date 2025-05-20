@@ -129,6 +129,7 @@ const usageLimitsRouter = require("./routes/usageLimits");
 const forumBotRoutes = require("./routes/forumBot");
 const aiAssistantRouter = require("./routes/aiAssistant");
 const lessonPlannerRouter = require("./routes/lessonPlanner");
+const lessonPlanGeneratorRouter = require("./routes/lessonPlanGenerator");
 const assessmentCreatorRouter = require("./routes/assessmentCreator");
 const tosBuilderRouter = require("./routes/tosBuilder");
 const rubricGeneratorRouter = require("./routes/rubricGenerator");
@@ -146,6 +147,7 @@ app.use("/api/ai/ask", aiAssistantRouter); // AI Assistant route
 
 // Teacher tools routes
 app.use("/api/ai/generate/lesson", lessonPlannerRouter); // Lesson planner route
+app.use("/api/ai/generate/lesson-plan", lessonPlanGeneratorRouter); // Lesson plan generator route (for frontend compatibility)
 app.use("/api/ai/generate/assessment", assessmentCreatorRouter); // Assessment creator route
 app.use("/api/ai/generate/tos", tosBuilderRouter); // Table of Specifications builder route
 app.use("/api/ai/generate/rubric", rubricGeneratorRouter); // Rubric generator route
