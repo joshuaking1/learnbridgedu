@@ -127,15 +127,31 @@ app.get("/api/ai/health", (_, res) => {
 const quizGeneratorRouter = require("./routes/quizGenerator");
 const usageLimitsRouter = require("./routes/usageLimits");
 const forumBotRoutes = require("./routes/forumBot");
+const aiAssistantRouter = require("./routes/aiAssistant");
 
 // --- Make groq and db available to routes ---
 app.locals.groq = groq;
 app.locals.db = db;
 
 // --- Mount Routes ---
-app.use("/api/ai/generate", authenticateToken, quizGeneratorRouter);
-app.use("/api/ai/limits", authenticateToken, usageLimitsRouter);
+// TEMPORARY: Bypassing authentication for all routes
+app.use("/api/ai/generate", quizGeneratorRouter); // Authentication bypassed
+app.use("/api/ai/limits", usageLimitsRouter); // Authentication bypassed
 app.use("/api/forum-bot", forumBotRoutes); // No authentication required for forum bot routes
+app.use("/api/ai/ask", aiAssistantRouter); // AI Assistant route
+
+// Add a mock user for routes that expect user data
+app.use((req, res, next) => {
+  // Add a mock user to all requests
+  req.user = {
+    userId: "mock-user-123",
+    role: "teacher", // Set to teacher to ensure all features work
+    email: "mock@example.com",
+    firstName: "Mock",
+    lastName: "User",
+  };
+  next();
+});
 
 // --- Start the HTTP server (which includes Socket.IO) ---
 server.listen(PORT, () => {

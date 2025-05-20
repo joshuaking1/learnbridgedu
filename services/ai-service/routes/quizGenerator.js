@@ -1,65 +1,84 @@
 // services/ai-service/routes/quizGenerator.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const db = require('../db');
-const groq = require('../groqClient');
-const { generateEmbedding } = require('../utils/embeddingProcessor');
-const usageLimitService = require('../services/usageLimitService');
-const checkUsageLimit = require('../middleware/checkUsageLimit');
+const db = require("../db");
+const groq = require("../groqClient");
+const { generateEmbedding } = require("../utils/embeddingProcessor");
+const usageLimitService = require("../services/usageLimitService");
+const checkUsageLimit = require("../middleware/checkUsageLimit");
 
 // --- Generate Quiz ---
 // POST /api/ai/generate/quiz
-router.post('/quiz', checkUsageLimit(usageLimitService.SERVICES.GENERATE_QUIZ), async (req, res) => {
-    const { subject, book, topic, questionCount, difficulty, format } = req.body;
+// TEMPORARY: Authentication and usage limit check bypassed
+router.post("/quiz", async (req, res) => {
+  const { subject, book, topic, questionCount, difficulty, format } = req.body;
 
-    // Validate required fields
-    if (!subject || !book) {
-        return res.status(400).json({ error: 'Missing required fields: subject, book' });
-    }
+  // Validate required fields
+  if (!subject || !book) {
+    return res
+      .status(400)
+      .json({ error: "Missing required fields: subject, book" });
+  }
 
-    // Set defaults for optional fields
-    const count = parseInt(questionCount) || 5;
-    const quizDifficulty = difficulty || 'mixed';
-    const questionFormat = format || 'multiple_choice';
+  // Set defaults for optional fields
+  const count = parseInt(questionCount) || 5;
+  const quizDifficulty = difficulty || "mixed";
+  const questionFormat = format || "multiple_choice";
 
-    // Validate count
-    if (isNaN(count) || count < 1 || count > 10) {
-        return res.status(400).json({ error: 'Question count must be between 1 and 10' });
-    }
+  // Validate count
+  if (isNaN(count) || count < 1 || count > 10) {
+    return res
+      .status(400)
+      .json({ error: "Question count must be between 1 and 10" });
+  }
 
-    // Check if Groq client is available
-    if (!groq) {
-        return res.status(503).json({ error: 'AI Service Unavailable: Groq API key not configured.' });
-    }
+  // Check if Groq client is available
+  if (!groq) {
+    return res
+      .status(503)
+      .json({ error: "AI Service Unavailable: Groq API key not configured." });
+  }
 
-    console.log(`[AI Service] Quiz generation request received for Subject: ${subject}, Book: ${book}`);
+  console.log(
+    `[AI Service] Quiz generation request received for Subject: ${subject}, Book: ${book}`
+  );
 
-    try {
-        // Determine user role for content filtering
-        const userRole = req.user?.role || 'student';
-        const allowedAudiences = userRole === 'teacher' || userRole === 'admin'
-            ? ['all', 'teacher']
-            : ['all', 'student'];
+  try {
+    // Determine user role for content filtering
+    const userRole = req.user?.role || "student";
+    const allowedAudiences =
+      userRole === "teacher" || userRole === "admin"
+        ? ["all", "teacher"]
+        : ["all", "student"];
 
-        // Prepare search query for relevant content
-        const searchQueryText = `Quiz about ${subject}, ${book}${topic ? `, focusing on ${topic}` : ''}`;
-        console.log(`[AI Service] Generating embedding for quiz search query: "${searchQueryText.substring(0,100)}..."`);
+    // Prepare search query for relevant content
+    const searchQueryText = `Quiz about ${subject}, ${book}${
+      topic ? `, focusing on ${topic}` : ""
+    }`;
+    console.log(
+      `[AI Service] Generating embedding for quiz search query: "${searchQueryText.substring(
+        0,
+        100
+      )}..."`
+    );
 
-        // Generate embedding for semantic search
-        const queryEmbedding = await generateEmbedding(searchQueryText);
+    // Generate embedding for semantic search
+    const queryEmbedding = await generateEmbedding(searchQueryText);
 
-        let context = "No specific context found in SBC documents for this book.";
-        let sbcResultsFound = false;
+    let context = "No specific context found in SBC documents for this book.";
+    let sbcResultsFound = false;
 
-        if (queryEmbedding && queryEmbedding.length === 384) {
-            const embeddingString = `[${queryEmbedding.join(',')}]`;
-            const similarityThreshold = 0.70;
-            const matchCount = 5;
+    if (queryEmbedding && queryEmbedding.length === 384) {
+      const embeddingString = `[${queryEmbedding.join(",")}]`;
+      const similarityThreshold = 0.7;
+      const matchCount = 5;
 
-            console.log(`[AI Service] Searching for relevant SBC chunks for quiz (threshold: ${similarityThreshold}, count: ${matchCount})...`);
+      console.log(
+        `[AI Service] Searching for relevant SBC chunks for quiz (threshold: ${similarityThreshold}, count: ${matchCount})...`
+      );
 
-            // Vector search query
-            const searchQuery = `
+      // Vector search query
+      const searchQuery = `
                 SELECT content, source_document_name, 1 - (embedding <=> $1::vector) AS similarity
                 FROM sbc_document_chunks
                 WHERE source_document_name = $4 -- Filter by book name
@@ -69,32 +88,51 @@ router.post('/quiz', checkUsageLimit(usageLimitService.SERVICES.GENERATE_QUIZ), 
                 LIMIT $3
             `;
 
-            const searchValues = [embeddingString, similarityThreshold, matchCount, book, allowedAudiences];
-            const { rows: searchResults } = await db.query(searchQuery, searchValues);
+      const searchValues = [
+        embeddingString,
+        similarityThreshold,
+        matchCount,
+        book,
+        allowedAudiences,
+      ];
+      const { rows: searchResults } = await db.query(searchQuery, searchValues);
 
-            if (searchResults && searchResults.length > 0) {
-                sbcResultsFound = true;
-                context = searchResults.map((row, index) =>
-                    `Chunk ${index + 1} (from ${row.source_document_name || 'SBC Doc'}):\n${row.content}`
-                ).join("\n\n---\n\n");
+      if (searchResults && searchResults.length > 0) {
+        sbcResultsFound = true;
+        context = searchResults
+          .map(
+            (row, index) =>
+              `Chunk ${index + 1} (from ${
+                row.source_document_name || "SBC Doc"
+              }):\n${row.content}`
+          )
+          .join("\n\n---\n\n");
 
-                // Limit context length
-                const maxContextLength = 4000;
-                if (context.length > maxContextLength) {
-                    context = context.substring(0, maxContextLength) + "...";
-                }
-
-                console.log(`[AI Service] Using combined context (length: ${context.length}) for quiz.`);
-            } else {
-                console.log("[AI Service] No relevant SBC chunks found above similarity threshold for quiz.");
-            }
-        } else {
-            console.warn("[AI Service] Failed to generate embedding for quiz search query. Proceeding without specific context.");
+        // Limit context length
+        const maxContextLength = 4000;
+        if (context.length > maxContextLength) {
+          context = context.substring(0, maxContextLength) + "...";
         }
 
-        // Construct prompt for quiz generation
-        const quizPrompt = `
-Generate a quiz with ${count} questions about the book "${book}" for the subject "${subject}"${topic ? ` focusing on the topic "${topic}"` : ''}.
+        console.log(
+          `[AI Service] Using combined context (length: ${context.length}) for quiz.`
+        );
+      } else {
+        console.log(
+          "[AI Service] No relevant SBC chunks found above similarity threshold for quiz."
+        );
+      }
+    } else {
+      console.warn(
+        "[AI Service] Failed to generate embedding for quiz search query. Proceeding without specific context."
+      );
+    }
+
+    // Construct prompt for quiz generation
+    const quizPrompt = `
+Generate a quiz with ${count} questions about the book "${book}" for the subject "${subject}"${
+      topic ? ` focusing on the topic "${topic}"` : ""
+    }.
 The quiz should be at a ${quizDifficulty} difficulty level and use the ${questionFormat} format.
 
 Use the following content from the book as context for creating relevant questions:
@@ -127,57 +165,77 @@ Make sure:
 7. The JSON is valid and properly formatted
 `;
 
-        console.log(`[AI Service] Sending quiz generation request to Groq for user ${req.user?.userId || 'unknown'}.`);
+    console.log(
+      `[AI Service] Sending quiz generation request to Groq for user ${
+        req.user?.userId || "unknown"
+      }.`
+    );
 
-        // Call Groq API to generate the quiz
-        const chatCompletion = await groq.chat.completions.create({
-            messages: [{ role: 'user', content: quizPrompt }],
-            model: 'llama3-70b-8192',
-            temperature: 0.7,
-            response_format: { type: "json_object" }
-        });
+    // Call Groq API to generate the quiz
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [{ role: "user", content: quizPrompt }],
+      model: "llama3-70b-8192",
+      temperature: 0.7,
+      response_format: { type: "json_object" },
+    });
 
-        const aiResponse = chatCompletion.choices[0]?.message?.content || '';
-        console.log(`[AI Service] Groq quiz generated for user ${req.user?.userId || 'unknown'}.`);
+    const aiResponse = chatCompletion.choices[0]?.message?.content || "";
+    console.log(
+      `[AI Service] Groq quiz generated for user ${
+        req.user?.userId || "unknown"
+      }.`
+    );
 
-        // Parse the JSON response
-        try {
-            const quizData = JSON.parse(aiResponse);
+    // Parse the JSON response
+    try {
+      const quizData = JSON.parse(aiResponse);
 
-            // Record usage for non-admin users
-            if (req.user.role !== 'admin') {
-                await usageLimitService.recordUsage(req.user, usageLimitService.SERVICES.GENERATE_QUIZ);
-            }
+      // TEMPORARY: Use mock user if req.user is undefined
+      const user = req.user || {
+        userId: "mock-user-123",
+        role: "teacher",
+      };
 
-            // Get updated limit info
-            const limitInfo = await usageLimitService.checkUserLimit(
-                req.user,
-                usageLimitService.SERVICES.GENERATE_QUIZ
-            );
+      // Record usage for non-admin users
+      if (user.role !== "admin") {
+        await usageLimitService.recordUsage(
+          user,
+          usageLimitService.SERVICES.GENERATE_QUIZ
+        );
+      }
 
-            res.status(200).json({
-                ...quizData,
-                limitInfo
-            });
-        } catch (parseError) {
-            console.error('[AI Service] Error parsing quiz JSON response:', parseError);
-            res.status(500).json({
-                error: 'Failed to parse quiz data from AI response.',
-                rawResponse: aiResponse
-            });
-        }
-    } catch (error) {
-        console.error('[AI Service] Error during quiz generation:', error);
+      // Get updated limit info
+      const limitInfo = await usageLimitService.checkUserLimit(
+        user,
+        usageLimitService.SERVICES.GENERATE_QUIZ
+      );
 
-        let statusCode = 500;
-        let message = 'Failed to generate quiz.';
-
-        if (error.status === 401) {
-            message = 'AI Service authentication error. Check Groq API Key.';
-        }
-
-        res.status(statusCode).json({ error: message });
+      res.status(200).json({
+        ...quizData,
+        limitInfo,
+      });
+    } catch (parseError) {
+      console.error(
+        "[AI Service] Error parsing quiz JSON response:",
+        parseError
+      );
+      res.status(500).json({
+        error: "Failed to parse quiz data from AI response.",
+        rawResponse: aiResponse,
+      });
     }
+  } catch (error) {
+    console.error("[AI Service] Error during quiz generation:", error);
+
+    let statusCode = 500;
+    let message = "Failed to generate quiz.";
+
+    if (error.status === 401) {
+      message = "AI Service authentication error. Check Groq API Key.";
+    }
+
+    res.status(statusCode).json({ error: message });
+  }
 });
 
 module.exports = router;
