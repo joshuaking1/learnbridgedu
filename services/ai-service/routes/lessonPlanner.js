@@ -21,6 +21,15 @@ router.post('/', async (req, res) => {
     classLevel, 
     topic, 
     duration = 60, 
+    week = '',
+    strand = '',
+    substrand = '',
+    contentStandards = '',
+    learningOutcomes = [],
+    learningIndicators = [],
+    essentialQuestions = [],
+    pedagogicalStrategies = '',
+    teachingResources = [],
     learningObjectives = [], 
     additionalNotes = "" 
   } = req.body;
@@ -47,35 +56,55 @@ router.post('/', async (req, res) => {
 
 Your role is to generate detailed, Standards-Based Curriculum (SBC) lesson plans for any subject and grade level taught in Ghanaian schools.
 
-Each lesson plan must follow the SBC lesson planning structure and include:
+Each lesson plan must follow the official SBC lesson planning structure and include these mandatory sections:
 
-Introduction/Starter (5–10 minutes) — a warm-up or engagement activity
+1. LESSON HEADER:
+   - Subject
+   - Week
+   - Duration
+   - Class
+   - Strand
+   - Substrand
+   - Content Standards
+   - Learning Outcome(s)
+   - Learning Indicator(s)
+   - Essential Questions (provide 3)
 
-Main Activity (30–40 minutes) — core teaching and learning activities
+2. LESSON BODY:
+   - Introduction/Starter (5–10 minutes) — a warm-up or engagement activity
+   - Main Activity (30–40 minutes) — core teaching and learning activities
+   - Plenary/Conclusion (5–10 minutes) — a recap, reflection or summary activity
 
-Plenary/Conclusion (5–10 minutes) — a recap, reflection or summary activity
+3. SUPPORTING ELEMENTS:
+   - Pedagogical Strategies (specific teaching approaches)
+   - Teaching and Learning Resources (textbooks, TLMs, digital aids, etc.)
+   - Assessment — based on Depth of Knowledge (DoK) levels
+   - Key Notes on Differentiation (to support learners of varying ability levels)
+   - Keywords (important vocabulary/concepts covered)
 
-Assessment — based on Depth of Knowledge (DoK) levels
-
-Resources Needed — textbooks, TLMs, digital aids, etc.
-
-Differentiation Strategies — to support learners of varying ability levels
-
-Please present the lesson plan in a clear, well-structured format that is easy for teachers to read and implement.`;
+Please present the lesson plan in a clear, well-structured format that aligns perfectly with Ghana's SBC framework and is easy for teachers to read and implement.`;
 
     // Prepare the prompt
     const prompt = `Now, generate a lesson plan using the following input:
 
 Subject: ${subject}
 Class Level: ${classLevel}
-Topic: "${topic}"
+Week: ${week}
 Duration: ${duration} minutes
+Topic: "${topic}"
+Strand: ${strand}
+Substrand: ${substrand}
+Content Standards: ${contentStandards}
 
-${learningObjectives.length > 0 ? `Learning Objectives:\n${learningObjectives.map(obj => `- ${obj}`).join('\n')}` : ''}
+${learningOutcomes.length > 0 ? `Learning Outcome(s):\n${learningOutcomes.map(obj => `- ${obj}`).join('\n')}` : ''}
+${learningIndicators.length > 0 ? `\nLearning Indicator(s):\n${learningIndicators.map(ind => `- ${ind}`).join('\n')}` : ''}
+${essentialQuestions.length > 0 ? `\nEssential Questions:\n${essentialQuestions.map((q, i) => `${i+1}. ${q}`).join('\n')}` : ''}
+${learningObjectives.length > 0 ? `\nLearning Objectives:\n${learningObjectives.map(obj => `- ${obj}`).join('\n')}` : ''}
+${pedagogicalStrategies ? `\nPedagogical Strategies: ${pedagogicalStrategies}` : ''}
+${teachingResources.length > 0 ? `\nTeaching and Learning Resources:\n${teachingResources.map(res => `- ${res}`).join('\n')}` : ''}
+${additionalNotes ? `\nAdditional Notes: ${additionalNotes}` : ''}
 
-${additionalNotes ? `Additional Notes: ${additionalNotes}` : ''}
-
-Make sure the lesson plan promotes creativity, learner engagement, inquiry-based learning, and aligns with Ghana's national curriculum framework.`;
+Make sure the lesson plan promotes creativity, learner engagement, inquiry-based learning, and aligns perfectly with Ghana's Standards-Based Curriculum framework.`;
 
     // Generate the AI response using Groq
     const chatCompletion = await groq.chat.completions.create({
@@ -109,8 +138,18 @@ Make sure the lesson plan promotes creativity, learner engagement, inquiry-based
       metadata: {
         subject,
         classLevel,
-        topic,
+        week,
         duration,
+        topic,
+        strand,
+        substrand,
+        contentStandards,
+        learningOutcomes,
+        learningIndicators,
+        essentialQuestions,
+        pedagogicalStrategies,
+        teachingResources,
+        learningObjectives,
         generatedAt: new Date().toISOString()
       },
       limitInfo
