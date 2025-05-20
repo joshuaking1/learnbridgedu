@@ -128,6 +128,10 @@ const quizGeneratorRouter = require("./routes/quizGenerator");
 const usageLimitsRouter = require("./routes/usageLimits");
 const forumBotRoutes = require("./routes/forumBot");
 const aiAssistantRouter = require("./routes/aiAssistant");
+const lessonPlannerRouter = require("./routes/lessonPlanner");
+const assessmentCreatorRouter = require("./routes/assessmentCreator");
+const tosBuilderRouter = require("./routes/tosBuilder");
+const rubricGeneratorRouter = require("./routes/rubricGenerator");
 
 // --- Make groq and db available to routes ---
 app.locals.groq = groq;
@@ -135,10 +139,16 @@ app.locals.db = db;
 
 // --- Mount Routes ---
 // TEMPORARY: Bypassing authentication for all routes
-app.use("/api/ai/generate", quizGeneratorRouter); // Authentication bypassed
+app.use("/api/ai/generate/quiz", quizGeneratorRouter); // Authentication bypassed
 app.use("/api/ai/limits", usageLimitsRouter); // Authentication bypassed
 app.use("/api/forum-bot", forumBotRoutes); // No authentication required for forum bot routes
 app.use("/api/ai/ask", aiAssistantRouter); // AI Assistant route
+
+// Teacher tools routes
+app.use("/api/ai/generate/lesson", lessonPlannerRouter); // Lesson planner route
+app.use("/api/ai/generate/assessment", assessmentCreatorRouter); // Assessment creator route
+app.use("/api/ai/generate/tos", tosBuilderRouter); // Table of Specifications builder route
+app.use("/api/ai/generate/rubric", rubricGeneratorRouter); // Rubric generator route
 
 // Add a mock user for routes that expect user data
 app.use((req, res, next) => {
